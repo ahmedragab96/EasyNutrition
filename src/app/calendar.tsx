@@ -4,12 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
 
-export default function HomeScreen() {
+export default function CalendarScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.container}>
-        <Text style={styles.placeholder}>🏠</Text>
-        <Text style={styles.label}>Home</Text>
+        <Text style={styles.placeholder}>📅</Text>
+        <Text style={styles.label}>Calendar</Text>
         <Text style={styles.hint}>Coming soon</Text>
       </View>
     </SafeAreaView>

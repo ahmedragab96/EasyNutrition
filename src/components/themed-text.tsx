@@ -1,20 +1,32 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+/**
+ * ThemedText — updated for the flat Colors design system.
+ * Kept for backward compatibility with any old components,
+ * but new screens should use StyleSheet.create with Colors directly.
+ */
 
-import { Fonts, ThemeColor } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { StyleSheet, Text, type TextProps } from 'react-native';
+
+import { Colors, FontFamily, FontSize } from '@/constants/theme';
+
+export type ThemedTextType =
+  | 'default'
+  | 'title'
+  | 'small'
+  | 'smallBold'
+  | 'subtitle'
+  | 'link'
+  | 'linkPrimary'
+  | 'code';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
-  themeColor?: ThemeColor;
+  type?: ThemedTextType;
 };
 
-export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
-  const theme = useTheme();
-
+export function ThemedText({ style, type = 'default', ...rest }: ThemedTextProps) {
   return (
     <Text
       style={[
-        { color: theme[themeColor ?? 'text'] },
+        { color: Colors.onSurface },
         type === 'default' && styles.default,
         type === 'title' && styles.title,
         type === 'small' && styles.small,
@@ -32,42 +44,43 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
 
 const styles = StyleSheet.create({
   small: {
-    fontSize: 14,
+    fontSize: FontSize.bodyMd,
     lineHeight: 20,
-    fontWeight: 500,
+    fontFamily: FontFamily.bodyMedium,
   },
   smallBold: {
-    fontSize: 14,
+    fontSize: FontSize.bodyMd,
     lineHeight: 20,
-    fontWeight: 700,
+    fontFamily: FontFamily.bodyBold,
   },
   default: {
-    fontSize: 16,
+    fontSize: FontSize.bodyLg,
     lineHeight: 24,
-    fontWeight: 500,
+    fontFamily: FontFamily.bodyMedium,
   },
   title: {
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
+    fontSize: FontSize.displayMd,
+    fontFamily: FontFamily.displayBold,
+    lineHeight: 56,
   },
   subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
+    fontSize: FontSize.headlineLg,
+    lineHeight: 40,
+    fontFamily: FontFamily.displaySemiBold,
   },
   link: {
     lineHeight: 30,
-    fontSize: 14,
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.body,
   },
   linkPrimary: {
     lineHeight: 30,
-    fontSize: 14,
-    color: '#3c87f7',
+    fontSize: FontSize.bodyMd,
+    color: Colors.secondary,
+    fontFamily: FontFamily.bodyMedium,
   },
   code: {
-    fontFamily: Fonts.mono,
-    fontWeight: Platform.select({ android: 700 }) ?? 500,
-    fontSize: 12,
+    fontFamily: 'monospace',
+    fontSize: FontSize.bodySm,
   },
 });

@@ -1,16 +1,20 @@
+/**
+ * ThemedView — updated for flat Colors design system.
+ */
+
 import { View, type ViewProps } from 'react-native';
 
-import { ThemeColor } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { ColorToken, Colors } from '@/constants/theme';
 
 export type ThemedViewProps = ViewProps & {
-  lightColor?: string;
-  darkColor?: string;
-  type?: ThemeColor;
+  colorToken?: ColorToken;
 };
 
-export function ThemedView({ style, lightColor, darkColor, type, ...otherProps }: ThemedViewProps) {
-  const theme = useTheme();
-
-  return <View style={[{ backgroundColor: theme[type ?? 'background'] }, style]} {...otherProps} />;
+export function ThemedView({ style, colorToken, ...otherProps }: ThemedViewProps) {
+  return (
+    <View
+      style={[{ backgroundColor: Colors[colorToken ?? 'surface'] }, style]}
+      {...otherProps}
+    />
+  );
 }
