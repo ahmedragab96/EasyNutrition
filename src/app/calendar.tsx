@@ -1,43 +1,496 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+/**
+ * Calendar Screen — "The Living Ledger"
+ *
+ * Layout:
+ *  ┌─ MonthHeader ─────────────────────────────┐
+ *  │  THE LIVING LEDGER                        │
+ *  │  March 2026  (bold)                       │
+ *  │  <   This Month   >                       │
+ *  ├─ Calendar Grid ───────────────────────────┤
+ *  │  SUN  MON  TUE  WED  THU  FRI  SAT        │
+ *  │  [ring][ring][ring][ring][ring][ring][ring]│
+ *  │  …5–6 rows                                │
+ *  ├─ Day Detail ──────────────────────────────┤
+ *  │  Tuesday, March 31          🍴            │
+ *  │  You've reached 88% of your daily target. │
+ *  │  <MealCard> × n                           │
+ *  └───────────────────────────────────────────┘
+ *
+ * Uses flash-calendar's `useCalendar` hook for week generation
+ * and `toDateId` / `fromDateId` for date ↔ ID conversion.
+ */
+
+import { Ionicons } from '@expo/vector-icons';
+import {
+  fromDateId,
+  toDateId,
+  useCalendar,
+} from '@marceloterreiro/flash-calendar';
+import React, { useMemo, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
+import { DayRing } from '@/components/calendar/day-ring';
+import { MealCard } from '@/components/home/meal-card';
+import {
+  Colors,
+  FontFamily,
+  FontSize,
+  LineHeight,
+  Radius,
+  Spacing,
+} from '@/constants/theme';
+import { DayLog, Meal } from '@/types/nutrition';
+
+// ─── Mock Data ────────────────────────────────────────────────────────────────
+
+const CALORIE_GOAL = 2200;
+
+/** Calories consumed per day in March 2026 (day-of-month → kcal) */
+const MARCH_2026_CALORIES: Record<number, number> = {
+  1: 2050,  2: 1780,  3: 2380,  4: 1620,
+  5: 1950,  6: 2100,  7: 1430,  8: 1880,
+  9: 2240,  10: 1700, 11: 2560, 12: 1900,
+  13: 1550, 14: 2020, 15: 1830, 16: 2180,
+  17: 2310, 18: 1650, 19: 2000, 20: 1740,
+  21: 2400, 22: 1860, 23: 2100, 24: 1480,
+  25: 1920, 26: 2260, 27: 1750, 28: 2030,
+  29: 1670, 30: 2140, 31: 1936,
+};
+
+const TODAY_MEALS: Meal[] = [
+  {
+    id: 'm1',
+    name: 'Avocado & Salmon Bowl',
+    time: '8:00 AM',
+    type: 'BREAKFAST',
+    kcal: 520,
+    macros: { protein: 33, carbs: 28, fats: 30 },
+  },
+  {
+    id: 'm2',
+    name: 'Harvest Grain Salad',
+    time: '12:30 PM',
+    type: 'LUNCH',
+    kcal: 650,
+    macros: { protein: 24, carbs: 72, fats: 18 },
+  },
+  {
+    id: 'm3',
+    name: 'Steamed Ginger Sea Bass',
+    time: '7:00 PM',
+    type: 'DINNER',
+    kcal: 766,
+    macros: { protein: 48, carbs: 20, fats: 22 },
+  },
+];
+
+/** Build a map of dateId → DayLog for the entire mock dataset */
+function buildLogMap(): Record<string, DayLog> {
+  const map: Record<string, DayLog> = {};
+  Object.entries(MARCH_2026_CALORIES).forEach(([day, kcal]) => {
+    const dateId = `2026-03-${String(day).padStart(2, '0')}`;
+    map[dateId] = {
+      dateId,
+      caloriesConsumed: kcal,
+      caloriesGoal: CALORIE_GOAL,
+      meals: dateId === '2026-03-31' ? TODAY_MEALS : [],
+    };
+  });
+  return map;
+}
+
+const LOG_MAP = buildLogMap();
+
+// ─── Month helpers ────────────────────────────────────────────────────────────
+
+function addMonths(date: Date, n: number): Date {
+  return new Date(date.getFullYear(), date.getMonth() + n, 1);
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+type MonthHeaderProps = {
+  label: string;
+  isCurrentMonth: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  onThisMonth: () => void;
+};
+
+function MonthHeader({
+  label,
+  isCurrentMonth,
+  onPrev,
+  onNext,
+  onThisMonth,
+}: MonthHeaderProps) {
+  return (
+    <View style={hStyles.root}>
+      <Text style={hStyles.eyebrow}>THE LIVING LEDGER</Text>
+      <Text style={hStyles.title}>{label}</Text>
+      <View style={hStyles.navRow}>
+        <Pressable
+          onPress={onPrev}
+          style={hStyles.arrowBtn}
+          accessibilityLabel="Previous month"
+          android_ripple={{ color: Colors.surfaceContainerHigh, borderless: true, radius: 20 }}
+        >
+          <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+        </Pressable>
+
+        <Pressable
+          onPress={onThisMonth}
+          style={[hStyles.chip, isCurrentMonth && hStyles.chipActive]}
+          android_ripple={{ color: Colors.primaryContainer }}
+        >
+          <Text style={[hStyles.chipLabel, isCurrentMonth && hStyles.chipLabelActive]}>
+            This Month
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={onNext}
+          style={hStyles.arrowBtn}
+          accessibilityLabel="Next month"
+          android_ripple={{ color: Colors.surfaceContainerHigh, borderless: true, radius: 20 }}
+        >
+          <Ionicons name="chevron-forward" size={20} color={Colors.onSurface} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const hStyles = StyleSheet.create({
+  root: {
+    gap: Spacing.one,
+    paddingBottom: Spacing.two,
+  },
+  eyebrow: {
+    fontSize: FontSize.labelSm,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurfaceVariant,
+    letterSpacing: 1.4,
+  },
+  title: {
+    fontSize: FontSize.headlineMd,
+    fontFamily: FontFamily.displayBold,
+    color: Colors.onSurface,
+    lineHeight: LineHeight.headlineMd,
+    letterSpacing: -0.4,
+  },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.two,
+    gap: Spacing.two,
+  },
+  arrowBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chip: {
+    flex: 1,
+    height: 36,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipActive: {
+    backgroundColor: Colors.primaryContainer,
+  },
+  chipLabel: {
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurfaceVariant,
+  },
+  chipLabelActive: {
+    color: Colors.onPrimaryContainer,
+  },
+});
+
+// ─── Day Detail Panel ─────────────────────────────────────────────────────────
+
+type DayDetailProps = {
+  dateId: string;
+  log: DayLog | undefined;
+};
+
+function DayDetail({ dateId, log }: DayDetailProps) {
+  const date = fromDateId(dateId);
+
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
+  const monthDay = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const heading = `${weekday}, ${monthDay}`;
+  const percent = log
+    ? Math.round((log.caloriesConsumed / log.caloriesGoal) * 100)
+    : 0;
+
+  return (
+    <View style={dStyles.root}>
+      {/* Header row */}
+      <View style={dStyles.headerRow}>
+        <View style={dStyles.headerText}>
+          <Text style={dStyles.heading}>{heading}</Text>
+          {log && (
+            <Text style={dStyles.targetLine}>
+              You've reached{' '}
+              <Text style={dStyles.targetPct}>{percent}%</Text>
+              {' '}of your daily target.
+            </Text>
+          )}
+        </View>
+        <View style={dStyles.iconBadge}>
+          <Ionicons
+            name="restaurant-outline"
+            size={18}
+            color={Colors.onSurfaceVariant}
+          />
+        </View>
+      </View>
+
+      {/* Meals */}
+      {log && log.meals.length > 0 ? (
+        <View style={dStyles.mealList}>
+          {log.meals.map((meal) => (
+            <MealCard key={meal.id} meal={meal} />
+          ))}
+        </View>
+      ) : (
+        <View style={dStyles.emptyState}>
+          <Text style={dStyles.emptyIcon}>🥗</Text>
+          <Text style={dStyles.emptyText}>
+            {log ? 'Tap a meal to see details.' : 'No data logged for this day.'}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const dStyles = StyleSheet.create({
+  root: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xxl,
+    padding: Spacing.five,
+    gap: Spacing.four,
+    shadowColor: Colors.onSurface,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 2,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  headerText: {
+    flex: 1,
+    gap: Spacing.one,
+  },
+  heading: {
+    fontSize: FontSize.titleLg,
+    fontFamily: FontFamily.displayBold,
+    color: Colors.onSurface,
+    lineHeight: LineHeight.titleLg,
+  },
+  targetLine: {
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+    lineHeight: LineHeight.bodyMd,
+  },
+  targetPct: {
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurface,
+  },
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mealList: {
+    gap: Spacing.three,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: Spacing.six,
+    gap: Spacing.two,
+  },
+  emptyIcon: {
+    fontSize: 32,
+  },
+  emptyText: {
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+  },
+});
+
+// ─── CalendarScreen ───────────────────────────────────────────────────────────
+
+const TODAY = new Date();
+const TODAY_ID = toDateId(TODAY);
+const CURRENT_MONTH = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
 
 export default function CalendarScreen() {
+  const { width } = useWindowDimensions();
+  const [currentMonth, setCurrentMonth] = useState<Date>(CURRENT_MONTH);
+  const [selectedDateId, setSelectedDateId] = useState<string>(TODAY_ID);
+
+  // Cell dimensions
+  const cellSize = Math.floor((width - Spacing.five * 2) / 7);
+  const ringSize = cellSize - 6;
+
+  // flash-calendar hook — generates weeksList + weekDaysList for current month
+  const { weeksList, weekDaysList, calendarRowMonth } = useCalendar({
+    calendarMonthId: toDateId(currentMonth),
+    calendarFirstDayOfWeek: 'sunday',
+  });
+
+  const isCurrentMonth = useMemo(
+    () =>
+      currentMonth.getFullYear() === CURRENT_MONTH.getFullYear() &&
+      currentMonth.getMonth() === CURRENT_MONTH.getMonth(),
+    [currentMonth],
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.container}>
-        <Text style={styles.placeholder}>📅</Text>
-        <Text style={styles.label}>Calendar</Text>
-        <Text style={styles.hint}>Coming soon</Text>
-      </View>
+      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Month Header ── */}
+        <MonthHeader
+          label={calendarRowMonth}
+          isCurrentMonth={isCurrentMonth}
+          onPrev={() => setCurrentMonth((m) => addMonths(m, -1))}
+          onNext={() => setCurrentMonth((m) => addMonths(m, 1))}
+          onThisMonth={() => {
+            setCurrentMonth(CURRENT_MONTH);
+            setSelectedDateId(TODAY_ID);
+          }}
+        />
+
+        {/* ── Calendar Grid ── */}
+        <View style={styles.grid}>
+          {/* Day name headers */}
+          <View style={styles.dayHeaderRow}>
+            {weekDaysList.map((name) => (
+              <Text
+                key={name + Math.random()}
+                style={[styles.dayHeader, { width: cellSize }]}
+              >
+                {name.slice(0, 3).toUpperCase()}
+              </Text>
+            ))}
+          </View>
+
+          {/* Weeks */}
+          {weeksList.map((week, wi) => (
+            <View key={wi} style={styles.weekRow}>
+              {week.map((day) => {
+                const log = LOG_MAP[day.id];
+                const progress = log
+                  ? log.caloriesConsumed / log.caloriesGoal
+                  : 0;
+
+                return (
+                  <Pressable
+                    key={day.id}
+                    onPress={() => setSelectedDateId(day.id)}
+                    style={{ width: cellSize, alignItems: 'center', paddingVertical: 3 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={day.displayLabel}
+                  >
+                    <DayRing
+                      displayLabel={day.displayLabel}
+                      progress={progress}
+                      hasData={!!log}
+                      isToday={day.isToday}
+                      isSelected={day.id === selectedDateId}
+                      isDifferentMonth={day.isDifferentMonth}
+                      size={ringSize}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+
+        {/* ── Selected Day Detail ── */}
+        <DayDetail
+          dateId={selectedDateId}
+          log={LOG_MAP[selectedDateId]}
+        />
+
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: Colors.background,
   },
-  container: {
+  scroll: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
   },
-  placeholder: {
-    fontSize: 64,
+  content: {
+    paddingHorizontal: Spacing.five,
+    paddingTop: Spacing.four,
+    gap: Spacing.five,
   },
-  label: {
-    fontSize: FontSize.titleMd,
-    fontFamily: FontFamily.displaySemiBold,
-    color: Colors.onSurface,
+
+  // ── Grid ───────────────────────────────────────────────────────────────────
+  grid: {
+    gap: 0,
   },
-  hint: {
-    fontSize: FontSize.bodyMd,
-    fontFamily: FontFamily.body,
+  dayHeaderRow: {
+    flexDirection: 'row',
+    marginBottom: Spacing.one,
+  },
+  dayHeader: {
+    textAlign: 'center',
+    fontSize: FontSize.labelSm,
+    fontFamily: FontFamily.bodySemiBold,
     color: Colors.onSurfaceVariant,
+    letterSpacing: 0.6,
+  },
+  weekRow: {
+    flexDirection: 'row',
+  },
+
+  bottomSpacer: {
+    height: Spacing.eight,
   },
 });
