@@ -1,31 +1,15 @@
-/**
- * DayRing — mini SVG calorie-progress ring for calendar cells.
- *
- * States:
- *  - No data (future / unlogged): track circle only
- *  - 0–65 % consumed: primary green arc
- *  - 65–85 %: amber arc
- *  - >85 %: tertiary red arc
- *  - isToday: filled primary circle (solid, white number)
- *  - isSelected (non-today): thin primaryContainer border around the ring
- *  - isDifferentMonth: 28 % opacity
- */
-
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
-import { Colors, FontFamily } from '@/constants/theme';
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+import { Colors } from '@/constants/theme';
+import { styles } from './day-ring.styles';
 
 function progressColor(p: number): string {
   if (p <= 0.65) return Colors.primary;
   if (p <= 0.85) return '#c47800';
   return Colors.tertiary;
 }
-
-// ─── Types ───────────────────────────────────────────────────────────────────
 
 export type DayRingProps = {
   displayLabel: string;
@@ -39,8 +23,6 @@ export type DayRingProps = {
   size: number;
 };
 
-// ─── DayRing ─────────────────────────────────────────────────────────────────
-
 export function DayRing({
   displayLabel,
   progress,
@@ -50,7 +32,7 @@ export function DayRing({
   isDifferentMonth,
   size,
 }: DayRingProps) {
-  const sw = Math.max(size * 0.09, 3);       // stroke width
+  const sw = Math.max(size * 0.09, 3);
   const center = size / 2;
   const radius = center - sw / 2 - 1;
   const circumference = 2 * Math.PI * radius;
@@ -61,18 +43,11 @@ export function DayRing({
 
   return (
     <View style={[styles.cell, { width: size, height: size, opacity }]}>
-      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        {/* Today: filled disc */}
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
         {isToday && (
-          <Circle
-            cx={center}
-            cy={center}
-            r={center - 1}
-            fill={Colors.primary}
-          />
+          <Circle cx={center} cy={center} r={center - 1} fill={Colors.primary} />
         )}
 
-        {/* Track ring */}
         {!isToday && (
           <Circle
             cx={center}
@@ -85,7 +60,6 @@ export function DayRing({
           />
         )}
 
-        {/* Progress arc */}
         {hasData && progress > 0 && !isToday && (
           <Circle
             cx={center}
@@ -102,7 +76,6 @@ export function DayRing({
           />
         )}
 
-        {/* Selected highlight (non-today) */}
         {isSelected && !isToday && (
           <Circle
             cx={center}
@@ -119,10 +92,7 @@ export function DayRing({
       <Text
         style={[
           styles.label,
-          {
-            fontSize,
-            color: isToday ? Colors.onPrimary : Colors.onSurface,
-          },
+          { fontSize, color: isToday ? Colors.onPrimary : Colors.onSurface },
         ]}
       >
         {displayLabel}
@@ -130,16 +100,3 @@ export function DayRing({
     </View>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  cell: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    fontFamily: FontFamily.displaySemiBold,
-    includeFontPadding: false,
-  },
-});
