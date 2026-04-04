@@ -35,6 +35,46 @@ export type DayLog = {
   meals: Meal[];
 };
 
+export type UserProfile = {
+  id: string;
+  displayName?: string;
+  calorieGoal: number;
+  macroGoals: Macros;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FoodSource = 'ai_scan' | 'manual_search' | 'system';
+
+export type FoodItem = {
+  id: string;
+  name: string;
+  description?: string;
+  kcal: number;
+  macros: Macros;
+  servingSize?: number;
+  servingUnit?: string;
+  category?: string;
+  source: FoodSource;
+  aiConfidence?: number;
+  createdBy?: string;
+  isPublic: boolean;
+  createdAt: string;
+};
+
+export type MealLog = {
+  id: string;
+  userId: string;
+  foodItemId: string;
+  mealType: MealType;
+  /** YYYY-MM-DD */
+  dateId: string;
+  loggedAt: string;
+  quantity: number;
+  snapshot: { kcal: number } & Macros;
+  notes?: string;
+};
+
 export type DailySummary = {
   caloriesConsumed: number;
   caloriesGoal: number;
