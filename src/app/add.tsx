@@ -1,12 +1,11 @@
 /**
  * Add Meal Screen
  *
- * Two modes:
- *  - Camera: live CameraView → capture → mock AI result card → confirm & log
- *  - Manual: search bar + food list (mock data, real DB later)
+ * Camera flow:
+ *   viewfinder → [capture] → preview (description + meal type) → [Analyse]
+ *   → result (AI analysis) → [Confirm & Log] → saved to DB
  *
- * Camera flow:  viewfinder → [capture] → result card
- * Manual flow:  search input → filtered food list → [+] to log
+ * Manual flow: search input → filtered food list → [+] to log
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -34,47 +33,11 @@ import {
   Radius,
   Spacing,
 } from '@/constants/theme';
-import { Meal, MealType } from '@/types/nutrition';
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-type FoodItem = {
-  id: string;
-  name: string;
-  kcal: number;
-  category: string;
-  macros: { protein: number; carbs: number; fats: number };
-};
-
-const MOCK_FOODS: FoodItem[] = [
-  { id: '1',  name: 'Avocado Toast',         kcal: 320, category: 'Breakfast', macros: { protein: 12, carbs: 28, fats: 18 } },
-  { id: '2',  name: 'Greek Yogurt Parfait',  kcal: 210, category: 'Breakfast', macros: { protein: 14, carbs: 28, fats: 5  } },
-  { id: '3',  name: 'Oatmeal with Berries',  kcal: 280, category: 'Breakfast', macros: { protein: 8,  carbs: 48, fats: 6  } },
-  { id: '4',  name: 'Chicken Caesar Salad',  kcal: 450, category: 'Lunch',     macros: { protein: 38, carbs: 14, fats: 24 } },
-  { id: '5',  name: 'Brown Rice Bowl',       kcal: 380, category: 'Lunch',     macros: { protein: 8,  carbs: 74, fats: 4  } },
-  { id: '6',  name: 'Mediterranean Wrap',    kcal: 490, category: 'Lunch',     macros: { protein: 22, carbs: 54, fats: 18 } },
-  { id: '7',  name: 'Grilled Salmon',        kcal: 520, category: 'Dinner',    macros: { protein: 52, carbs: 0,  fats: 34 } },
-  { id: '8',  name: 'Pasta Bolognese',       kcal: 680, category: 'Dinner',    macros: { protein: 36, carbs: 72, fats: 22 } },
-  { id: '9',  name: 'Steamed Ginger Sea Bass', kcal: 420, category: 'Dinner', macros: { protein: 44, carbs: 12, fats: 18 } },
-  { id: '10', name: 'Protein Shake',         kcal: 180, category: 'Snack',     macros: { protein: 25, carbs: 10, fats: 3  } },
-  { id: '11', name: 'Mixed Nuts (30g)',       kcal: 180, category: 'Snack',     macros: { protein: 5,  carbs: 6,  fats: 16 } },
-  { id: '12', name: 'Banana',                kcal: 105, category: 'Snack',     macros: { protein: 1,  carbs: 27, fats: 0  } },
-];
-
-const MOCK_AI_RESULT = {
-  name: 'Avocado Toast',
-  kcal: 320,
-  confidence: 94,
-  mealType: 'BREAKFAST' as MealType,
-  macros: { protein: 12, carbs: 14, fats: 16 },
-};
-
-const MEAL_TYPE_COLOR: Record<string, string> = {
-  BREAKFAST: Colors.secondary,
-  LUNCH: Colors.primary,
-  DINNER: Colors.onSurface,
-  SNACK: Colors.tertiary,
-};
+import { FoodItem, MealType } from '@/types/nutrition';
+import { useMealAnalysis } from '@/hooks/use-meal-analysis';
+import { useLogMeal } from '@/hooks/use-log-meal';
+import { useFoodSearch } from '@/hooks/use-food-search';
+import { type MealAnalysisResult } from '@/services/meal-analysis';
 
 const CATEGORY_ICON: Record<string, string> = {
   Breakfast: '🌅',
@@ -82,6 +45,35 @@ const CATEGORY_ICON: Record<string, string> = {
   Dinner: '🌙',
   Snack: '🍎',
 };
+
+// ─── Shared meal-type helpers ─────────────────────────────────────────────────
+
+const MEAL_TYPE_OPTIONS: { type: MealType; label: string; icon: string }[] = [
+  { type: 'BREAKFAST', label: 'Breakfast', icon: '🌅' },
+  { type: 'LUNCH',     label: 'Lunch',     icon: '🌞' },
+  { type: 'DINNER',    label: 'Dinner',    icon: '🌙' },
+  { type: 'SNACK',     label: 'Snack',     icon: '🍎' },
+];
+
+const MEAL_TYPE_LABEL: Record<MealType, string> = {
+  BREAKFAST: 'Breakfast',
+  LUNCH: 'Lunch',
+  DINNER: 'Dinner',
+  SNACK: 'Snack',
+};
+
+function getDefaultMealType(): MealType {
+  const hour = new Date().getHours();
+  if (hour >= 5  && hour < 11) return 'BREAKFAST';
+  if (hour >= 11 && hour < 15) return 'LUNCH';
+  if (hour >= 18 && hour < 22) return 'DINNER';
+  return 'SNACK';
+}
+
+function getTodayDateId(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 // ─── Mode Selector ────────────────────────────────────────────────────────────
 
@@ -136,28 +128,28 @@ const msStyles = StyleSheet.create({
     height: 38,
     borderRadius: Radius.full,
   },
-  optionActive: {
-    backgroundColor: Colors.primaryContainer,
-  },
+  optionActive: { backgroundColor: Colors.primaryContainer },
   label: {
     fontSize: FontSize.bodyMd,
     fontFamily: FontFamily.bodySemiBold,
     color: Colors.onSurfaceVariant,
   },
-  labelActive: {
-    color: Colors.onPrimaryContainer,
-  },
+  labelActive: { color: Colors.onPrimaryContainer },
 });
 
 // ─── Camera Pane ──────────────────────────────────────────────────────────────
 
-type CameraState = 'viewfinder' | 'analyzing' | 'result';
+type CameraState = 'viewfinder' | 'preview' | 'result' | 'error';
 
 function CameraPane() {
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraState, setCameraState] = useState<CameraState>('viewfinder');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [aiResult, setAiResult] = useState<MealAnalysisResult | null>(null);
+  const [mealType, setMealType] = useState<MealType>(getDefaultMealType);
   const cameraRef = useRef<CameraView>(null);
+  const { analyze } = useMealAnalysis();
 
   // ── Permission not yet resolved
   if (!permission) {
@@ -184,44 +176,78 @@ function CameraPane() {
     );
   }
 
-  // ── Capture handler
+  // ── Step 1: take picture → go to preview
   async function handleCapture() {
     try {
-      setCameraState('analyzing');
-      const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
-      if (photo?.uri) {
-        setPhotoUri(photo.uri);
-        // Simulate AI processing delay
-        await new Promise((r) => setTimeout(r, 1200));
-        setCameraState('result');
-      } else {
-        setCameraState('viewfinder');
-      }
+      const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8, base64: true });
+      if (!photo?.uri || !photo?.base64) return;
+      setPhotoUri(photo.uri);
+      setPhotoBase64(photo.base64);
+      setCameraState('preview');
     } catch {
-      setCameraState('viewfinder');
+      setCameraState('error');
     }
   }
 
-  // ── Analyzing overlay
-  if (cameraState === 'analyzing') {
+  // ── Step 2: preview submits → call Claude → go to result
+  async function handleAnalyse(description: string, type: MealType) {
+    setMealType(type);
+    try {
+      const result = await analyze({
+        imageBase64: photoBase64!,
+        mimeType: 'image/jpeg',
+        description: description.trim() || undefined,
+      });
+      setAiResult(result);
+      setCameraState('result');
+    } catch {
+      setCameraState('error');
+    }
+  }
+
+  function handleReset() {
+    setCameraState('viewfinder');
+    setPhotoUri(null);
+    setPhotoBase64(null);
+    setAiResult(null);
+  }
+
+  // ── Error
+  if (cameraState === 'error') {
     return (
       <View style={cpStyles.centered}>
-        <View style={cpStyles.analyzingCard}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={cpStyles.analyzingTitle}>Analysing meal…</Text>
-          <Text style={cpStyles.analyzingSub}>AI is identifying your food</Text>
+        <View style={cpStyles.errorCard}>
+          <Ionicons name="alert-circle-outline" size={40} color={Colors.tertiary} />
+          <Text style={cpStyles.errorTitle}>Analysis failed</Text>
+          <Text style={cpStyles.errorSub}>Could not identify the meal. Please try again.</Text>
+          <Pressable style={cpStyles.permBtn} onPress={handleReset}>
+            <Text style={cpStyles.permBtnLabel}>Try Again</Text>
+          </Pressable>
         </View>
       </View>
     );
   }
 
-  // ── Result card
-  if (cameraState === 'result') {
+  // ── Preview step
+  if (cameraState === 'preview') {
+    return (
+      <PreviewPane
+        photoUri={photoUri}
+        onRetake={handleReset}
+        onAnalyse={handleAnalyse}
+      />
+    );
+  }
+
+  // ── Result step
+  if (cameraState === 'result' && aiResult) {
     return (
       <ResultCard
         photoUri={photoUri}
-        onRetake={() => { setCameraState('viewfinder'); setPhotoUri(null); }}
-        onConfirm={() => { setCameraState('viewfinder'); setPhotoUri(null); }}
+        result={aiResult}
+        mealType={mealType}
+        onRetake={handleReset}
+        onConfirm={handleReset}
       />
     );
   }
@@ -229,24 +255,16 @@ function CameraPane() {
   // ── Viewfinder
   return (
     <View style={cpStyles.viewfinder}>
-      <CameraView
-        ref={cameraRef}
-        style={cpStyles.camera}
-        facing="back"
-      >
-        {/* Corner guides */}
+      <CameraView ref={cameraRef} style={cpStyles.camera} facing="back">
         <View style={cpStyles.guideTopLeft} />
         <View style={cpStyles.guideTopRight} />
         <View style={cpStyles.guideBottomLeft} />
         <View style={cpStyles.guideBottomRight} />
-
-        {/* Hint */}
         <View style={cpStyles.hint}>
           <Text style={cpStyles.hintText}>Point at your meal</Text>
         </View>
       </CameraView>
 
-      {/* Capture button */}
       <View style={cpStyles.captureRow}>
         <Pressable
           onPress={handleCapture}
@@ -294,7 +312,7 @@ const cpStyles = StyleSheet.create({
     fontFamily: FontFamily.bodySemiBold,
     color: Colors.onPrimary,
   },
-  analyzingCard: {
+  errorCard: {
     backgroundColor: Colors.surfaceContainerLowest,
     borderRadius: Radius.xxl,
     paddingVertical: Spacing.eight,
@@ -308,20 +326,18 @@ const cpStyles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 4,
   },
-  analyzingTitle: {
+  errorTitle: {
     fontSize: FontSize.titleMd,
     fontFamily: FontFamily.displaySemiBold,
     color: Colors.onSurface,
   },
-  analyzingSub: {
+  errorSub: {
     fontSize: FontSize.bodyMd,
     fontFamily: FontFamily.body,
     color: Colors.onSurfaceVariant,
+    textAlign: 'center',
   },
-  // ── Viewfinder ──────────────────────────────────────────────────────────────
-  viewfinder: {
-    flex: 1,
-  },
+  viewfinder: { flex: 1 },
   camera: {
     flex: 1,
     borderRadius: Radius.xxl,
@@ -341,12 +357,10 @@ const cpStyles = StyleSheet.create({
     fontFamily: FontFamily.bodySemiBold,
     color: '#ffffff',
   },
-  // Corner guide marks
   guideTopLeft:     { position: 'absolute', top: 24,    left: 24,    width: 22, height: 22, borderTopWidth: 2.5,    borderLeftWidth: 2.5,   borderColor: '#ffffff', borderTopLeftRadius: 4     },
   guideTopRight:    { position: 'absolute', top: 24,    right: 24,   width: 22, height: 22, borderTopWidth: 2.5,    borderRightWidth: 2.5,  borderColor: '#ffffff', borderTopRightRadius: 4    },
   guideBottomLeft:  { position: 'absolute', bottom: 24, left: 24,    width: 22, height: 22, borderBottomWidth: 2.5, borderLeftWidth: 2.5,   borderColor: '#ffffff', borderBottomLeftRadius: 4  },
   guideBottomRight: { position: 'absolute', bottom: 24, right: 24,   width: 22, height: 22, borderBottomWidth: 2.5, borderRightWidth: 2.5,  borderColor: '#ffffff', borderBottomRightRadius: 4 },
-  // Capture
   captureRow: {
     height: 100,
     alignItems: 'center',
@@ -373,17 +387,249 @@ const cpStyles = StyleSheet.create({
   },
 });
 
+// ─── Preview Pane ─────────────────────────────────────────────────────────────
+
+type PreviewPaneProps = {
+  photoUri: string | null;
+  onRetake: () => void;
+  onAnalyse: (description: string, mealType: MealType) => Promise<void>;
+};
+
+function PreviewPane({ photoUri, onRetake, onAnalyse }: PreviewPaneProps) {
+  const [description, setDescription] = useState('');
+  const [mealType, setMealType] = useState<MealType>(getDefaultMealType);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  async function handleSubmit() {
+    setAnalyzing(true);
+    try {
+      await onAnalyse(description, mealType);
+    } catch {
+      setAnalyzing(false);
+    }
+  }
+
+  return (
+    <ScrollView
+      style={pvStyles.scroll}
+      contentContainerStyle={pvStyles.content}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* ── Photo preview ── */}
+      <View style={pvStyles.photoCard}>
+        {photoUri ? (
+          <Image source={{ uri: photoUri }} style={pvStyles.photo} resizeMode="cover" />
+        ) : (
+          <View style={pvStyles.photoPlaceholder}>
+            <Ionicons name="image-outline" size={48} color={Colors.onSurfaceVariant} />
+          </View>
+        )}
+        <Pressable style={pvStyles.retakeBtn} onPress={onRetake} disabled={analyzing}>
+          <Ionicons name="refresh" size={16} color="#ffffff" />
+          <Text style={pvStyles.retakeBtnLabel}>Retake</Text>
+        </Pressable>
+      </View>
+
+      {/* ── Description ── */}
+      <View style={pvStyles.card}>
+        <Text style={pvStyles.cardTitle}>
+          Add a note{'  '}
+          <Text style={pvStyles.cardOptional}>optional</Text>
+        </Text>
+        <TextInput
+          style={pvStyles.descInput}
+          placeholder='"large portion", "no dressing", "shared with 2"…'
+          placeholderTextColor={Colors.onSurfaceVariant}
+          value={description}
+          onChangeText={setDescription}
+          multiline
+          numberOfLines={2}
+          returnKeyType="done"
+          blurOnSubmit
+          editable={!analyzing}
+        />
+      </View>
+
+      {/* ── Meal type ── */}
+      <View style={pvStyles.card}>
+        <Text style={pvStyles.cardTitle}>Meal Type</Text>
+        <View style={pvStyles.pillRow}>
+          {MEAL_TYPE_OPTIONS.map((opt) => {
+            const active = mealType === opt.type;
+            return (
+              <Pressable
+                key={opt.type}
+                style={[pvStyles.pill, active && pvStyles.pillActive]}
+                onPress={() => setMealType(opt.type)}
+                disabled={analyzing}
+                android_ripple={{ color: Colors.primaryContainer, borderless: false }}
+              >
+                <Text style={pvStyles.pillIcon}>{opt.icon}</Text>
+                <Text style={[pvStyles.pillLabel, active && pvStyles.pillLabelActive]}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* ── Analyse CTA ── */}
+      <Pressable
+        style={[pvStyles.ctaBtn, analyzing && pvStyles.ctaBtnBusy]}
+        onPress={handleSubmit}
+        disabled={analyzing}
+        android_ripple={{ color: Colors.primaryContainer }}
+      >
+        {analyzing
+          ? <ActivityIndicator size="small" color={Colors.onPrimary} />
+          : <Ionicons name="sparkles" size={18} color={Colors.onPrimary} />
+        }
+        <Text style={pvStyles.ctaLabel}>
+          {analyzing ? 'Analysing…' : 'Analyse Meal'}
+        </Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+const pvStyles = StyleSheet.create({
+  scroll: { flex: 1 },
+  content: { gap: Spacing.three, paddingBottom: Spacing.four },
+
+  photoCard: {
+    height: 220,
+    borderRadius: Radius.xxl,
+    overflow: 'hidden',
+    backgroundColor: Colors.surfaceContainerHighest,
+  },
+  photo: { ...StyleSheet.absoluteFillObject },
+  photoPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retakeBtn: {
+    position: 'absolute',
+    top: Spacing.three,
+    right: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.full,
+  },
+  retakeBtnLabel: {
+    fontSize: FontSize.labelSm,
+    fontFamily: FontFamily.bodySemiBold,
+    color: '#ffffff',
+  },
+
+  card: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xl,
+    padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  cardTitle: {
+    fontSize: FontSize.titleSm,
+    fontFamily: FontFamily.displaySemiBold,
+    color: Colors.onSurface,
+  },
+  cardOptional: {
+    fontSize: FontSize.labelSm,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+  },
+
+  descInput: {
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurface,
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    minHeight: 64,
+    textAlignVertical: 'top',
+  },
+
+  pillRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  pill: {
+    flex: 1,
+    alignItems: 'center',
+    gap: Spacing.one,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.three,
+  },
+  pillActive: { backgroundColor: Colors.primaryContainer },
+  pillIcon: { fontSize: 18 },
+  pillLabel: {
+    fontSize: FontSize.labelSm,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurfaceVariant,
+  },
+  pillLabelActive: { color: Colors.onPrimaryContainer },
+
+  ctaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    height: 52,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  ctaBtnBusy: { opacity: 0.75 },
+  ctaLabel: {
+    fontSize: FontSize.bodyLg,
+    fontFamily: FontFamily.displaySemiBold,
+    color: Colors.onPrimary,
+  },
+});
+
 // ─── Result Card ──────────────────────────────────────────────────────────────
 
 type ResultCardProps = {
   photoUri: string | null;
+  result: MealAnalysisResult;
+  mealType: MealType;
   onRetake: () => void;
   onConfirm: () => void;
 };
 
-function ResultCard({ photoUri, onRetake, onConfirm }: ResultCardProps) {
-  const result = MOCK_AI_RESULT;
-  const typeColor = MEAL_TYPE_COLOR[result.mealType.toUpperCase()] ?? Colors.primary;
+function ResultCard({ photoUri, result, mealType, onRetake, onConfirm }: ResultCardProps) {
+  const { logFromScan, loading: logging } = useLogMeal();
+
+  async function handleConfirm() {
+    try {
+      await logFromScan({
+        name: result.name,
+        kcal: result.kcal,
+        protein: result.protein,
+        carbs: result.carbs,
+        fats: result.fats,
+        aiConfidence: result.confidence,
+        mealType,
+        dateId: getTodayDateId(),
+      });
+      onConfirm();
+    } catch {
+      // error held in hook; could surface inline if needed
+    }
+  }
 
   return (
     <ScrollView
@@ -401,13 +647,11 @@ function ResultCard({ photoUri, onRetake, onConfirm }: ResultCardProps) {
           </View>
         )}
 
-        {/* Retake button */}
         <Pressable style={rcStyles.retakeBtn} onPress={onRetake}>
           <Ionicons name="refresh" size={16} color="#ffffff" />
           <Text style={rcStyles.retakeBtnLabel}>Retake</Text>
         </Pressable>
 
-        {/* AI badge overlay */}
         <View style={rcStyles.aiBadge}>
           <View style={rcStyles.aiBadgeInner}>
             <Ionicons name="sparkles" size={11} color={Colors.onPrimary} />
@@ -420,23 +664,16 @@ function ResultCard({ photoUri, onRetake, onConfirm }: ResultCardProps) {
         </View>
       </View>
 
-      {/* ── Stats row ── */}
+      {/* ── Stats ── */}
       <View style={rcStyles.statsRow}>
         <View style={rcStyles.statCard}>
           <Text style={rcStyles.statValue}>{result.confidence}%</Text>
-          <Text style={rcStyles.statLabel}>CONFIDENCE</Text>
+          <Text style={rcStyles.statLabel}>AI CONFIDENCE</Text>
         </View>
         <View style={rcStyles.statDivider} />
         <View style={rcStyles.statCard}>
-          <Ionicons
-            name={result.mealType === 'BREAKFAST' ? 'sunny' : result.mealType === 'LUNCH' ? 'partly-sunny' : 'moon'}
-            size={20}
-            color={typeColor}
-          />
-          <Text style={[rcStyles.statValue, { color: typeColor }]}>
-            {result.mealType.charAt(0) + result.mealType.slice(1).toLowerCase()}
-          </Text>
-          <Text style={rcStyles.statLabel}>TIME OF DAY</Text>
+          <Text style={rcStyles.statValue}>{MEAL_TYPE_LABEL[mealType]}</Text>
+          <Text style={rcStyles.statLabel}>MEAL TYPE</Text>
         </View>
       </View>
 
@@ -447,17 +684,27 @@ function ResultCard({ photoUri, onRetake, onConfirm }: ResultCardProps) {
           <Text style={rcStyles.macroSub}>Estimated from visual scan</Text>
         </View>
         <View style={rcStyles.macroChips}>
-          <MacroChip label="PROTEIN" value={result.macros.protein} unit="g" />
-          <MacroChip label="CARBS"   value={result.macros.carbs}   unit="g" />
-          <MacroChip label="FATS"    value={result.macros.fats}    unit="g" />
-          <MacroChip label="KCAL"    value={result.kcal}            unit=""  highlight />
+          <MacroChip label="PROTEIN" value={result.protein} unit="g" />
+          <MacroChip label="CARBS"   value={result.carbs}   unit="g" />
+          <MacroChip label="FATS"    value={result.fats}    unit="g" />
+          <MacroChip label="KCAL"    value={result.kcal}    unit=""  highlight />
         </View>
       </View>
 
       {/* ── CTA ── */}
-      <Pressable style={rcStyles.ctaBtn} onPress={onConfirm} android_ripple={{ color: Colors.primaryContainer }}>
-        <Text style={rcStyles.ctaLabel}>Confirm & Log Meal</Text>
-        <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
+      <Pressable
+        style={[rcStyles.ctaBtn, logging && rcStyles.ctaBtnBusy]}
+        onPress={handleConfirm}
+        disabled={logging}
+        android_ripple={{ color: Colors.primaryContainer }}
+      >
+        {logging
+          ? <ActivityIndicator size="small" color={Colors.onPrimary} />
+          : <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
+        }
+        <Text style={rcStyles.ctaLabel}>
+          {logging ? 'Logging…' : 'Confirm & Log Meal'}
+        </Text>
       </Pressable>
     </ScrollView>
   );
@@ -487,9 +734,7 @@ const rcStyles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: Colors.surfaceContainerHighest,
   },
-  photo: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  photo: { ...StyleSheet.absoluteFillObject },
   photoPlaceholder: {
     flex: 1,
     alignItems: 'center',
@@ -565,8 +810,8 @@ const rcStyles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    backgroundColor: Colors.outlineVariant,
-    opacity: 0.4,
+    backgroundColor: Colors.onSurfaceVariant,
+    opacity: 0.2,
     marginVertical: Spacing.three,
   },
   statValue: {
@@ -589,9 +834,7 @@ const rcStyles = StyleSheet.create({
     padding: Spacing.four,
     gap: Spacing.three,
   },
-  macroHeader: {
-    gap: 2,
-  },
+  macroHeader: { gap: 2 },
   macroTitle: {
     fontSize: FontSize.titleSm,
     fontFamily: FontFamily.displaySemiBold,
@@ -614,26 +857,20 @@ const rcStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
-  chipHighlight: {
-    backgroundColor: Colors.primaryContainer,
-  },
+  chipHighlight: { backgroundColor: Colors.primaryContainer },
   chipValue: {
     fontSize: FontSize.titleSm,
     fontFamily: FontFamily.displayBold,
     color: Colors.onSurface,
   },
-  chipValueHighlight: {
-    color: Colors.onPrimaryContainer,
-  },
+  chipValueHighlight: { color: Colors.onPrimaryContainer },
   chipLabel: {
     fontSize: 9,
     fontFamily: FontFamily.bodyBold,
     color: Colors.onSurfaceVariant,
     letterSpacing: 0.6,
   },
-  chipLabelHighlight: {
-    color: Colors.onPrimaryContainer,
-  },
+  chipLabelHighlight: { color: Colors.onPrimaryContainer },
 
   // ── CTA ─────────────────────────────────────────────────────────────────────
   ctaBtn: {
@@ -650,6 +887,7 @@ const rcStyles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
   },
+  ctaBtnBusy: { opacity: 0.75 },
   ctaLabel: {
     fontSize: FontSize.bodyLg,
     fontFamily: FontFamily.displaySemiBold,
@@ -661,22 +899,16 @@ const rcStyles = StyleSheet.create({
 
 function ManualPane() {
   const [query, setQuery] = useState('');
-
-  const filtered = query.trim().length > 0
-    ? MOCK_FOODS.filter((f) =>
-        f.name.toLowerCase().includes(query.toLowerCase()) ||
-        f.category.toLowerCase().includes(query.toLowerCase()),
-      )
-    : MOCK_FOODS;
+  const { results, loading } = useFoodSearch(query);
+  const hasQuery = query.trim().length > 0;
 
   return (
     <View style={mpStyles.root}>
-      {/* Search bar */}
       <View style={mpStyles.searchBar}>
         <Ionicons name="search" size={18} color={Colors.onSurfaceVariant} />
         <TextInput
           style={mpStyles.searchInput}
-          placeholder="Search foods, meals…"
+          placeholder="Search foods you've logged…"
           placeholderTextColor={Colors.onSurfaceVariant}
           value={query}
           onChangeText={setQuery}
@@ -691,31 +923,36 @@ function ManualPane() {
         )}
       </View>
 
-      {/* Section header */}
-      {query.trim().length === 0 && (
-        <Text style={mpStyles.sectionLabel}>All Foods</Text>
-      )}
-      {query.trim().length > 0 && (
+      {hasQuery && !loading && (
         <Text style={mpStyles.sectionLabel}>
-          {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+          {results.length} result{results.length !== 1 ? 's' : ''}
         </Text>
       )}
 
-      {/* Food list */}
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={mpStyles.list}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={mpStyles.empty}>
-            <Text style={mpStyles.emptyIcon}>🔍</Text>
-            <Text style={mpStyles.emptyText}>No foods match "{query}"</Text>
-            <Text style={mpStyles.emptySub}>Database search coming soon</Text>
-          </View>
-        }
-        renderItem={({ item }) => <FoodRow item={item} />}
-      />
+      {!hasQuery ? (
+        <View style={mpStyles.empty}>
+          <Text style={mpStyles.emptyIcon}>🔍</Text>
+          <Text style={mpStyles.emptyText}>Search your food log</Text>
+          <Text style={mpStyles.emptySub}>Type a food name to find items you've logged before</Text>
+        </View>
+      ) : loading ? (
+        <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.six }} />
+      ) : (
+        <FlatList
+          data={results}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={mpStyles.list}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={mpStyles.empty}>
+              <Text style={mpStyles.emptyIcon}>🔍</Text>
+              <Text style={mpStyles.emptyText}>No results for "{query}"</Text>
+              <Text style={mpStyles.emptySub}>Try the camera to scan and log a new meal</Text>
+            </View>
+          }
+          renderItem={({ item }) => <FoodRow item={item} />}
+        />
+      )}
     </View>
   );
 }
@@ -727,14 +964,12 @@ function FoodRow({ item }: FoodRowProps) {
 
   return (
     <View style={frStyles.row}>
-      {/* Icon */}
       <View style={frStyles.icon}>
         <Text style={frStyles.iconEmoji}>
-          {CATEGORY_ICON[item.category] ?? '🍽️'}
+          {item.category ? (CATEGORY_ICON[item.category] ?? '🍽️') : '🍽️'}
         </Text>
       </View>
 
-      {/* Info */}
       <View style={frStyles.info}>
         <Text style={frStyles.name} numberOfLines={1}>{item.name}</Text>
         <Text style={frStyles.meta}>
@@ -742,7 +977,6 @@ function FoodRow({ item }: FoodRowProps) {
         </Text>
       </View>
 
-      {/* Kcal + add */}
       <View style={frStyles.right}>
         <Text style={frStyles.kcal}>{item.kcal}</Text>
         <Text style={frStyles.kcalUnit}>kcal</Text>
@@ -764,10 +998,7 @@ function FoodRow({ item }: FoodRowProps) {
 }
 
 const mpStyles = StyleSheet.create({
-  root: {
-    flex: 1,
-    gap: Spacing.three,
-  },
+  root: { flex: 1, gap: Spacing.three },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -791,10 +1022,7 @@ const mpStyles = StyleSheet.create({
     textTransform: 'uppercase',
     paddingHorizontal: Spacing.one,
   },
-  list: {
-    gap: Spacing.two,
-    paddingBottom: Spacing.four,
-  },
+  list: { gap: Spacing.two, paddingBottom: Spacing.four },
   empty: {
     alignItems: 'center',
     paddingTop: Spacing.ten,
@@ -833,10 +1061,7 @@ const frStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconEmoji: { fontSize: 20 },
-  info: {
-    flex: 1,
-    gap: 2,
-  },
+  info: { flex: 1, gap: 2 },
   name: {
     fontSize: FontSize.titleSm,
     fontFamily: FontFamily.displaySemiBold,
@@ -847,9 +1072,7 @@ const frStyles = StyleSheet.create({
     fontFamily: FontFamily.body,
     color: Colors.onSurfaceVariant,
   },
-  right: {
-    alignItems: 'flex-end',
-  },
+  right: { alignItems: 'flex-end' },
   kcal: {
     fontSize: FontSize.titleSm,
     fontFamily: FontFamily.displayBold,
@@ -869,9 +1092,7 @@ const frStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addBtnDone: {
-    backgroundColor: Colors.primaryContainer,
-  },
+  addBtnDone: { backgroundColor: Colors.primaryContainer },
 });
 
 // ─── AddScreen ────────────────────────────────────────────────────────────────

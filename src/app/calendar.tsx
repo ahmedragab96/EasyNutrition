@@ -8,8 +8,7 @@
  *  │  <   This Month   >                       │
  *  ├─ Calendar Grid ───────────────────────────┤
  *  │  SUN  MON  TUE  WED  THU  FRI  SAT        │
- *  │  [ring][ring][ring][ring][ring][ring][ring]│
- *  │  …5–6 rows                                │
+ *  │  [ring][ring]…                            │
  *  ├─ Day Detail ──────────────────────────────┤
  *  │  Tuesday, March 31          🍴            │
  *  │  You've reached 88% of your daily target. │
@@ -28,6 +27,7 @@ import {
 } from '@marceloterreiro/flash-calendar';
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StatusBar,
@@ -48,67 +48,11 @@ import {
   Radius,
   Spacing,
 } from '@/constants/theme';
-import { DayLog, Meal } from '@/types/nutrition';
+import { useDayLog } from '@/hooks/use-day-log';
+import { useMonthLogs } from '@/hooks/use-month-logs';
+import { DailySummary, Meal } from '@/types/nutrition';
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const CALORIE_GOAL = 2200;
-
-/** Calories consumed per day in March 2026 (day-of-month → kcal) */
-const MARCH_2026_CALORIES: Record<number, number> = {
-  1: 2050,  2: 1780,  3: 2380,  4: 1620,
-  5: 1950,  6: 2100,  7: 1430,  8: 1880,
-  9: 2240,  10: 1700, 11: 2560, 12: 1900,
-  13: 1550, 14: 2020, 15: 1830, 16: 2180,
-  17: 2310, 18: 1650, 19: 2000, 20: 1740,
-  21: 2400, 22: 1860, 23: 2100, 24: 1480,
-  25: 1920, 26: 2260, 27: 1750, 28: 2030,
-  29: 1670, 30: 2140, 31: 1936,
-};
-
-const TODAY_MEALS: Meal[] = [
-  {
-    id: 'm1',
-    name: 'Avocado & Salmon Bowl',
-    time: '8:00 AM',
-    type: 'BREAKFAST',
-    kcal: 520,
-    macros: { protein: 33, carbs: 28, fats: 30 },
-  },
-  {
-    id: 'm2',
-    name: 'Harvest Grain Salad',
-    time: '12:30 PM',
-    type: 'LUNCH',
-    kcal: 650,
-    macros: { protein: 24, carbs: 72, fats: 18 },
-  },
-  {
-    id: 'm3',
-    name: 'Steamed Ginger Sea Bass',
-    time: '7:00 PM',
-    type: 'DINNER',
-    kcal: 766,
-    macros: { protein: 48, carbs: 20, fats: 22 },
-  },
-];
-
-/** Build a map of dateId → DayLog for the entire mock dataset */
-function buildLogMap(): Record<string, DayLog> {
-  const map: Record<string, DayLog> = {};
-  Object.entries(MARCH_2026_CALORIES).forEach(([day, kcal]) => {
-    const dateId = `2026-03-${String(day).padStart(2, '0')}`;
-    map[dateId] = {
-      dateId,
-      caloriesConsumed: kcal,
-      caloriesGoal: CALORIE_GOAL,
-      meals: dateId === '2026-03-31' ? TODAY_MEALS : [],
-    };
-  });
-  return map;
-}
-
-const LOG_MAP = buildLogMap();
+const DEFAULT_CALORIE_GOAL = 2000;
 
 // ─── Month helpers ────────────────────────────────────────────────────────────
 
@@ -209,37 +153,32 @@ const hStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipActive: {
-    backgroundColor: Colors.primaryContainer,
-  },
+  chipActive: { backgroundColor: Colors.primaryContainer },
   chipLabel: {
     fontSize: FontSize.bodyMd,
     fontFamily: FontFamily.bodySemiBold,
     color: Colors.onSurfaceVariant,
   },
-  chipLabelActive: {
-    color: Colors.onPrimaryContainer,
-  },
+  chipLabelActive: { color: Colors.onPrimaryContainer },
 });
 
 // ─── Day Detail Panel ─────────────────────────────────────────────────────────
 
 type DayDetailProps = {
   dateId: string;
-  log: DayLog | undefined;
+  meals: Meal[];
+  summary: DailySummary;
+  loading: boolean;
 };
 
-function DayDetail({ dateId, log }: DayDetailProps) {
+function DayDetail({ dateId, meals, summary, loading }: DayDetailProps) {
   const date = fromDateId(dateId);
-
   const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
-  const monthDay = date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
+  const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const heading = `${weekday}, ${monthDay}`;
-  const percent = log
-    ? Math.round((log.caloriesConsumed / log.caloriesGoal) * 100)
+  const hasData = summary.caloriesConsumed > 0;
+  const percent = hasData
+    ? Math.round((summary.caloriesConsumed / summary.caloriesGoal) * 100)
     : 0;
 
   return (
@@ -248,7 +187,7 @@ function DayDetail({ dateId, log }: DayDetailProps) {
       <View style={dStyles.headerRow}>
         <View style={dStyles.headerText}>
           <Text style={dStyles.heading}>{heading}</Text>
-          {log && (
+          {hasData && (
             <Text style={dStyles.targetLine}>
               You've reached{' '}
               <Text style={dStyles.targetPct}>{percent}%</Text>
@@ -257,27 +196,23 @@ function DayDetail({ dateId, log }: DayDetailProps) {
           )}
         </View>
         <View style={dStyles.iconBadge}>
-          <Ionicons
-            name="restaurant-outline"
-            size={18}
-            color={Colors.onSurfaceVariant}
-          />
+          <Ionicons name="restaurant-outline" size={18} color={Colors.onSurfaceVariant} />
         </View>
       </View>
 
       {/* Meals */}
-      {log && log.meals.length > 0 ? (
+      {loading ? (
+        <ActivityIndicator color={Colors.primary} />
+      ) : meals.length > 0 ? (
         <View style={dStyles.mealList}>
-          {log.meals.map((meal) => (
+          {meals.map((meal) => (
             <MealCard key={meal.id} meal={meal} />
           ))}
         </View>
       ) : (
         <View style={dStyles.emptyState}>
           <Text style={dStyles.emptyIcon}>🥗</Text>
-          <Text style={dStyles.emptyText}>
-            {log ? 'Tap a meal to see details.' : 'No data logged for this day.'}
-          </Text>
+          <Text style={dStyles.emptyText}>No meals logged for this day.</Text>
         </View>
       )}
     </View>
@@ -330,17 +265,13 @@ const dStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mealList: {
-    gap: Spacing.three,
-  },
+  mealList: { gap: Spacing.three },
   emptyState: {
     alignItems: 'center',
     paddingVertical: Spacing.six,
     gap: Spacing.two,
   },
-  emptyIcon: {
-    fontSize: 32,
-  },
+  emptyIcon: { fontSize: 32 },
   emptyText: {
     fontSize: FontSize.bodyMd,
     fontFamily: FontFamily.body,
@@ -363,11 +294,18 @@ export default function CalendarScreen() {
   const cellSize = Math.floor((width - Spacing.five * 2) / 7);
   const ringSize = cellSize - 6;
 
-  // flash-calendar hook — generates weeksList + weekDaysList for current month
+  // flash-calendar week generation
   const { weeksList, weekDaysList, calendarRowMonth } = useCalendar({
     calendarMonthId: toDateId(currentMonth),
     calendarFirstDayOfWeek: 'sunday',
   });
+
+  // Real data
+  const { calorieSums } = useMonthLogs(
+    currentMonth.getFullYear(),
+    currentMonth.getMonth() + 1,  // 1-indexed
+  );
+  const { meals, summary, loading: dayLoading } = useDayLog(selectedDateId);
 
   const isCurrentMonth = useMemo(
     () =>
@@ -414,10 +352,8 @@ export default function CalendarScreen() {
           {weeksList.map((week, wi) => (
             <View key={wi} style={styles.weekRow}>
               {week.map((day) => {
-                const log = LOG_MAP[day.id];
-                const progress = log
-                  ? log.caloriesConsumed / log.caloriesGoal
-                  : 0;
+                const kcal = calorieSums[day.id] ?? 0;
+                const progress = kcal / DEFAULT_CALORIE_GOAL;
 
                 return (
                   <Pressable
@@ -430,7 +366,7 @@ export default function CalendarScreen() {
                     <DayRing
                       displayLabel={day.displayLabel}
                       progress={progress}
-                      hasData={!!log}
+                      hasData={kcal > 0}
                       isToday={day.isToday}
                       isSelected={day.id === selectedDateId}
                       isDifferentMonth={day.isDifferentMonth}
@@ -446,7 +382,9 @@ export default function CalendarScreen() {
         {/* ── Selected Day Detail ── */}
         <DayDetail
           dateId={selectedDateId}
-          log={LOG_MAP[selectedDateId]}
+          meals={meals}
+          summary={summary}
+          loading={dayLoading}
         />
 
         <View style={styles.bottomSpacer} />
@@ -462,19 +400,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scroll: {
-    flex: 1,
-  },
+  scroll: { flex: 1 },
   content: {
     paddingHorizontal: Spacing.five,
     paddingTop: Spacing.four,
     gap: Spacing.five,
   },
-
-  // ── Grid ───────────────────────────────────────────────────────────────────
-  grid: {
-    gap: 0,
-  },
+  grid: { gap: 0 },
   dayHeaderRow: {
     flexDirection: 'row',
     marginBottom: Spacing.one,
@@ -486,11 +418,6 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
     letterSpacing: 0.6,
   },
-  weekRow: {
-    flexDirection: 'row',
-  },
-
-  bottomSpacer: {
-    height: Spacing.eight,
-  },
+  weekRow: { flexDirection: 'row' },
+  bottomSpacer: { height: Spacing.eight },
 });

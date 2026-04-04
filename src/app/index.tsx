@@ -5,11 +5,13 @@
  *  - App header (brand + date)
  *  - CalorieRing (SVG progress wheel, color-coded by consumption %)
  *  - MacroSection (Protein / Carbs / Fats animated bars)
- *  - MealsList (recent meals, no images)
+ *  - MealsList (recent meals)
  */
 
+import { toDateId } from '@marceloterreiro/flash-calendar';
 import React from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -22,49 +24,9 @@ import { MacroSection } from '@/components/home/macro-section';
 import { MealsList } from '@/components/home/meals-list';
 import { Navbar } from '@/components/ui/navbar';
 import { Colors, Spacing } from '@/constants/theme';
-import { DailySummary, Meal } from '@/types/nutrition';
+import { useDayLog } from '@/hooks/use-day-log';
 
-// ─── Mock data (replace with real data layer later) ───────────────────────────
-
-const DAILY_SUMMARY: DailySummary = {
-  caloriesConsumed: 1458,
-  caloriesGoal: 2200,
-  caloriesBurned: 320,
-  macros: {
-    protein: { consumed: 92, goal: 140 },
-    carbs: { consumed: 185, goal: 250 },
-    fats: { consumed: 42, goal: 70 },
-  },
-};
-
-const RECENT_MEALS: Meal[] = [
-  {
-    id: '1',
-    name: 'Poached Egg & Avocado',
-    time: '8:30 AM',
-    type: 'BREAKFAST',
-    kcal: 420,
-    macros: { protein: 18, carbs: 24, fats: 28 },
-  },
-  {
-    id: '2',
-    name: 'Mediterranean Bowl',
-    time: '1:15 PM',
-    type: 'LUNCH',
-    kcal: 650,
-    macros: { protein: 32, carbs: 58, fats: 22 },
-  },
-  {
-    id: '3',
-    name: 'Raw Almonds',
-    time: '4:00 PM',
-    type: 'SNACK',
-    kcal: 160,
-    macros: { protein: 6, carbs: 4, fats: 14 },
-  },
-];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const TODAY_ID = toDateId(new Date());
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -84,6 +46,8 @@ function formatDate(): string {
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
+  const { meals, summary, loading } = useDayLog(TODAY_ID);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
@@ -98,20 +62,27 @@ export default function HomeScreen() {
           date={formatDate()}
         />
 
-        {/* ── Calorie Progress Ring ── */}
-        <CalorieRing summary={DAILY_SUMMARY} />
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+          </View>
+        ) : (
+          <>
+            {/* ── Calorie Progress Ring ── */}
+            <CalorieRing summary={summary} />
 
-        {/* ── Macro Nutrition Bars ── */}
-        <MacroSection summary={DAILY_SUMMARY} />
+            {/* ── Macro Nutrition Bars ── */}
+            <MacroSection summary={summary} />
 
-        {/* ── Recent Meals ── */}
-        <MealsList
-          meals={RECENT_MEALS}
-          onViewDiary={() => console.log('View diary')}
-          onMealPress={(meal) => console.log('Meal pressed:', meal.name)}
-        />
+            {/* ── Recent Meals ── */}
+            <MealsList
+              meals={meals}
+              onViewDiary={() => {}}
+              onMealPress={() => {}}
+            />
+          </>
+        )}
 
-        {/* Bottom breathing room above tab bar */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
     </SafeAreaView>
@@ -133,7 +104,11 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.four,
     gap: Spacing.five,
   },
-
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 60,
+  },
   bottomSpacer: {
     height: Spacing.eight,
   },
