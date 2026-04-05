@@ -9,7 +9,8 @@
  */
 
 import { toDateId } from '@marceloterreiro/flash-calendar';
-import React from 'react';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -46,7 +47,9 @@ function formatDate(): string {
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { meals, summary, loading } = useDayLog(TODAY_ID);
+  const { meals, summary, loading, refresh } = useDayLog(TODAY_ID);
+
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

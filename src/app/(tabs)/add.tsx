@@ -33,11 +33,11 @@ import {
   Radius,
   Spacing,
 } from '@/constants/theme';
-import { FoodItem, MealType } from '@/types/nutrition';
-import { useMealAnalysis } from '@/hooks/use-meal-analysis';
-import { useLogMeal } from '@/hooks/use-log-meal';
 import { useFoodSearch } from '@/hooks/use-food-search';
+import { useLogMeal } from '@/hooks/use-log-meal';
+import { useMealAnalysis } from '@/hooks/use-meal-analysis';
 import { type MealAnalysisResult } from '@/services/meal-analysis';
+import { FoodItem, MealType } from '@/types/nutrition';
 
 const CATEGORY_ICON: Record<string, string> = {
   Breakfast: '🌅',
@@ -94,7 +94,6 @@ function ModeSelector({ value, onChange }: ModeSelectorProps) {
             key={m}
             style={[msStyles.option, active && msStyles.optionActive]}
             onPress={() => onChange(m)}
-            android_ripple={{ color: Colors.primaryContainer }}
           >
             <Ionicons
               name={m === 'camera' ? 'camera' : 'search'}
@@ -899,7 +898,7 @@ const rcStyles = StyleSheet.create({
 
 function ManualPane() {
   const [query, setQuery] = useState('');
-  const { results, loading } = useFoodSearch(query);
+  const { results, loading, isShowingRecent } = useFoodSearch(query);
   const hasQuery = query.trim().length > 0;
 
   return (
@@ -923,20 +922,22 @@ function ManualPane() {
         )}
       </View>
 
-      {hasQuery && !loading && (
+      {!loading && (
         <Text style={mpStyles.sectionLabel}>
-          {results.length} result{results.length !== 1 ? 's' : ''}
+          {isShowingRecent
+            ? results.length > 0 ? 'RECENTLY LOGGED' : ''
+            : `${results.length} result${results.length !== 1 ? 's' : ''}`}
         </Text>
       )}
 
-      {!hasQuery ? (
-        <View style={mpStyles.empty}>
-          <Text style={mpStyles.emptyIcon}>🔍</Text>
-          <Text style={mpStyles.emptyText}>Search your food log</Text>
-          <Text style={mpStyles.emptySub}>Type a food name to find items you've logged before</Text>
-        </View>
-      ) : loading ? (
+      {loading ? (
         <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.six }} />
+      ) : isShowingRecent && results.length === 0 ? (
+        <View style={mpStyles.empty}>
+          <Text style={mpStyles.emptyIcon}>🍽️</Text>
+          <Text style={mpStyles.emptyText}>No meals logged yet</Text>
+          <Text style={mpStyles.emptySub}>Use the camera to scan and log your first meal</Text>
+        </View>
       ) : (
         <FlatList
           data={results}

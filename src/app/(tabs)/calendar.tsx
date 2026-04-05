@@ -25,7 +25,8 @@ import {
   toDateId,
   useCalendar,
 } from '@marceloterreiro/flash-calendar';
-import React, { useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -301,11 +302,16 @@ export default function CalendarScreen() {
   });
 
   // Real data
-  const { calorieSums } = useMonthLogs(
+  const { calorieSums, refresh: refreshMonth } = useMonthLogs(
     currentMonth.getFullYear(),
     currentMonth.getMonth() + 1,  // 1-indexed
   );
-  const { meals, summary, loading: dayLoading } = useDayLog(selectedDateId);
+  const { meals, summary, loading: dayLoading, refresh: refreshDay } = useDayLog(selectedDateId);
+
+  useFocusEffect(useCallback(() => {
+    refreshMonth();
+    refreshDay();
+  }, [refreshMonth, refreshDay]));
 
   const isCurrentMonth = useMemo(
     () =>
