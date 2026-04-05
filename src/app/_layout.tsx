@@ -1,6 +1,6 @@
 /**
- * Root layout — loads custom fonts and mounts the tab navigator.
- * Android-only project.
+ * Root layout — font loading + Stack navigator + auth guard.
+ * Redirects based on session state and onboarding completion.
  */
 
 import {
@@ -18,13 +18,14 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { useFonts } from 'expo-font';
-import { Tabs } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
-import CustomTabBar from '@/components/tab-bar';
 import { Colors } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
+import { getUserProfile } from '@/services/user-profile';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -42,32 +43,54 @@ export default function RootLayout() {
     Manrope_800ExtraBold,
   });
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+  const { session, loading: authLoading } = useAuth();
+  const [profileReady, setProfileReady] = useState(false);
+  const [hasProfile, setHasProfile] = useState(false);
 
-  // Keep the splash screen visible while fonts load
-  if (!fontsLoaded && !fontError) {
-    return null;
-  }
+  // Once we have a session, check if the user completed onboarding
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!session) {
+      setProfileReady(true);
+      return;
+    }
+
+    getUserProfile()
+      .then((profile) => {
+        // Only consider onboarding done if calorieGoal was explicitly set
+        // (i.e. the user completed the onboarding wizard). A null profile or
+        // a row with calorieGoal === 0 means onboarding is still needed.
+        setHasProfile(!!profile && (profile.calorieGoal ?? 0) > 0);
+      })
+      .catch(() => {
+        setHasProfile(false);
+      })
+      .finally(() => {
+        setProfileReady(true);
+      });
+  }, [session, authLoading]);
+
+  // Hide splash and redirect once everything is resolved
+  useEffect(() => {
+    if (!fontsLoaded && !fontError) return;
+    if (authLoading || !profileReady) return;
+
+    SplashScreen.hideAsync();
+
+    if (!session) {
+      router.replace('/(auth)/register');
+    } else if (!hasProfile) {
+      router.replace('/(onboarding)');
+    } else {
+      router.replace('/(tabs)');
+    }
+  }, [fontsLoaded, fontError, authLoading, session, hasProfile, profileReady]);
 
   return (
     <>
       <StatusBar style="dark" backgroundColor={Colors.background} />
-      <Tabs
-        screenOptions={{ headerShown: false }}
-        tabBar={(props) => <CustomTabBar {...props} />}
-      >
-        <Tabs.Screen name="index" />
-        <Tabs.Screen name="calendar" />
-        <Tabs.Screen name="add" />
-        <Tabs.Screen name="insights" />
-        <Tabs.Screen name="profile" />
-        {/* Leftover template route — hidden from nav */}
-        <Tabs.Screen name="explore" options={{ href: null }} />
-      </Tabs>
+      <Stack screenOptions={{ headerShown: false }} />
     </>
   );
 }
