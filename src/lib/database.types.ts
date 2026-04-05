@@ -19,6 +19,7 @@ export type Database = {
           description: string | null
           fats: number
           id: string
+          is_countable: boolean
           is_public: boolean
           kcal: number
           name: string
@@ -36,6 +37,7 @@ export type Database = {
           description?: string | null
           fats: number
           id?: string
+          is_countable?: boolean
           is_public?: boolean
           kcal: number
           name: string
@@ -53,6 +55,7 @@ export type Database = {
           description?: string | null
           fats?: number
           id?: string
+          is_countable?: boolean
           is_public?: boolean
           kcal?: number
           name?: string

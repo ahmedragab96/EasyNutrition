@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 
-export async function osignUp(
+export async function signUp(
   email: string,
   password: string,
   displayName: string,

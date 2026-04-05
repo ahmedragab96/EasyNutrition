@@ -10,6 +10,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { router } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -903,8 +904,10 @@ function ManualPane() {
 
   return (
     <View style={mpStyles.root}>
-      <View style={mpStyles.searchBar}>
-        <Ionicons name="search" size={18} color={Colors.onSurfaceVariant} />
+      {/* ── Search bar + Add button ── */}
+      <View style={mpStyles.topRow}>
+        <View style={[mpStyles.searchBar, mpStyles.searchBarFlex]}>
+          <Ionicons name="search" size={18} color={Colors.onSurfaceVariant} />
         <TextInput
           style={mpStyles.searchInput}
           placeholder="Search foods you've logged…"
@@ -920,12 +923,21 @@ function ManualPane() {
             <Ionicons name="close-circle" size={18} color={Colors.onSurfaceVariant} />
           </Pressable>
         )}
+        </View>
+        <Pressable
+          style={mpStyles.addItemBtn}
+          onPress={() => router.push('/create-item')}
+          android_ripple={{ color: Colors.primaryContainer, borderless: true, radius: 22 }}
+          accessibilityLabel="Add new food item"
+        >
+          <Ionicons name="add" size={22} color={Colors.primary} />
+        </Pressable>
       </View>
 
       {!loading && (
         <Text style={mpStyles.sectionLabel}>
           {isShowingRecent
-            ? results.length > 0 ? 'RECENTLY LOGGED' : ''
+            ? results.length > 0 ? 'QUICK ADD' : ''
             : `${results.length} result${results.length !== 1 ? 's' : ''}`}
         </Text>
       )}
@@ -961,10 +973,30 @@ function ManualPane() {
 type FoodRowProps = { item: FoodItem };
 
 function FoodRow({ item }: FoodRowProps) {
-  const [added, setAdded] = useState(false);
+  function handlePress() {
+    router.push({
+      pathname: '/log-item',
+      params: {
+        id: item.id,
+        name: item.name,
+        kcal: String(item.kcal),
+        protein: String(item.macros.protein),
+        carbs: String(item.macros.carbs),
+        fats: String(item.macros.fats),
+        servingSize: String(item.servingSize ?? 100),
+        servingUnit: item.servingUnit ?? 'g',
+        isCountable: item.isCountable ? '1' : '0',
+        category: item.category ?? '',
+      },
+    });
+  }
 
   return (
-    <View style={frStyles.row}>
+    <Pressable
+      style={frStyles.row}
+      onPress={handlePress}
+      android_ripple={{ color: Colors.surfaceContainerHigh }}
+    >
       <View style={frStyles.icon}>
         <Text style={frStyles.iconEmoji}>
           {item.category ? (CATEGORY_ICON[item.category] ?? '🍽️') : '🍽️'}
@@ -982,24 +1014,21 @@ function FoodRow({ item }: FoodRowProps) {
         <Text style={frStyles.kcal}>{item.kcal}</Text>
         <Text style={frStyles.kcalUnit}>kcal</Text>
       </View>
-      <Pressable
-        style={[frStyles.addBtn, added && frStyles.addBtnDone]}
-        onPress={() => setAdded((v) => !v)}
-        android_ripple={{ color: Colors.primaryContainer, borderless: true, radius: 18 }}
-        accessibilityLabel={added ? 'Remove' : 'Add'}
-      >
-        <Ionicons
-          name={added ? 'checkmark' : 'add'}
-          size={18}
-          color={added ? Colors.onPrimaryContainer : Colors.onPrimary}
-        />
-      </Pressable>
-    </View>
+
+      <View style={frStyles.addBtn}>
+        <Ionicons name="chevron-forward" size={18} color={Colors.onSurfaceVariant} />
+      </View>
+    </Pressable>
   );
 }
 
 const mpStyles = StyleSheet.create({
   root: { flex: 1, gap: Spacing.three },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1008,6 +1037,20 @@ const mpStyles = StyleSheet.create({
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.four,
     height: 48,
+  },
+  searchBarFlex: { flex: 1 },
+  addItemBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerLowest,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.onSurface,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
@@ -1089,11 +1132,9 @@ const frStyles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: Radius.full,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addBtnDone: { backgroundColor: Colors.primaryContainer },
 });
 
 // ─── AddScreen ────────────────────────────────────────────────────────────────

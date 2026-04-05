@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getRecentFoodItems, searchFoodItems } from '@/services/food-items';
+import { getRecentFoodItems, getSystemFoodItems, searchFoodItems } from '@/services/food-items';
 import { FoodItem } from '@/types/nutrition';
 
 const DEBOUNCE_MS = 300;
@@ -15,16 +15,24 @@ export function useFoodSearch(query: string) {
     if (timerRef.current) clearTimeout(timerRef.current);
 
     if (!query.trim()) {
-      // Empty query — load recent items
+      // Empty query — show recent items, padded with system items up to 20
       setLoading(true);
       setIsShowingRecent(true);
-      getRecentFoodItems(20)
+      const MAX = 20;
+      getRecentFoodItems(MAX)
+        .then(async (recent) => {
+          if (recent.length >= MAX) return recent;
+          const recentIds = recent.map((i) => i.id);
+          const needed = MAX - recent.length;
+          const system = await getSystemFoodItems(needed, recentIds);
+          return [...recent, ...system];
+        })
         .then((items) => {
           setResults(items);
           setError(null);
         })
         .catch((e) => {
-          setError(e instanceof Error ? e.message : 'Failed to load recent items');
+          setError(e instanceof Error ? e.message : 'Failed to load items');
           setResults([]);
         })
         .finally(() => setLoading(false));

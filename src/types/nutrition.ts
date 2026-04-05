@@ -54,6 +54,8 @@ export type FoodItem = {
   macros: Macros;
   servingSize?: number;
   servingUnit?: string;
+  /** When true, kcal/macros are per piece and servingSize is grams per piece */
+  isCountable: boolean;
   category?: string;
   source: FoodSource;
   aiConfidence?: number;

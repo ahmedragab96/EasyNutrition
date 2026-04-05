@@ -18,6 +18,7 @@ function toFoodItem(row: FoodItemRow): FoodItem {
     },
     servingSize: row.serving_size ?? undefined,
     servingUnit: row.serving_unit ?? undefined,
+    isCountable: row.is_countable,
     category: row.category ?? undefined,
     source: row.source as FoodSource,
     aiConfidence: row.ai_confidence ?? undefined,
@@ -25,6 +26,30 @@ function toFoodItem(row: FoodItemRow): FoodItem {
     isPublic: row.is_public,
     createdAt: row.created_at,
   };
+}
+
+/**
+ * Fetches system food items (created_by IS NULL), excluding any IDs already shown.
+ * Used to pad the empty-query list when the user has fewer than `limit` recent items.
+ */
+export async function getSystemFoodItems(
+  limit: number,
+  excludeIds: string[] = [],
+): Promise<FoodItem[]> {
+  let query = supabase
+    .from('food_items')
+    .select('*')
+    .is('created_by', null)
+    .order('name', { ascending: true })
+    .limit(limit);
+
+  if (excludeIds.length > 0) {
+    query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(toFoodItem);
 }
 
 /**
@@ -96,6 +121,7 @@ export async function createFoodItem(
     fats: number;
     servingSize?: number;
     servingUnit?: string;
+    isCountable?: boolean;
     category?: string;
     source?: FoodSource;
     aiConfidence?: number;
@@ -115,6 +141,7 @@ export async function createFoodItem(
     fats: input.fats,
     serving_size: input.servingSize,
     serving_unit: input.servingUnit,
+    is_countable: input.isCountable ?? false,
     category: input.category ?? input.mealType ?? null,
     source: input.source ?? 'manual_search',
     ai_confidence: input.aiConfidence,
