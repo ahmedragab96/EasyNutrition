@@ -50,13 +50,6 @@ const MEAL_TYPE_OPTIONS: { type: MealType; label: string; icon: string }[] = [
   { type: 'SNACK',     label: 'Snack',     icon: '🍎' },
 ];
 
-function getDefaultMealType(): MealType {
-  const hour = new Date().getHours();
-  if (hour >= 5  && hour < 11) return 'BREAKFAST';
-  if (hour >= 11 && hour < 15) return 'LUNCH';
-  if (hour >= 18 && hour < 22) return 'DINNER';
-  return 'SNACK';
-}
 
 function getTodayDateId(): string {
   const d = new Date();
@@ -104,7 +97,7 @@ export default function LogItemScreen() {
 
   const [servingMode, setServingMode] = useState<ServingUnit>(isCountable ? 'piece' : '100g');
   const [amountStr, setAmountStr] = useState('1');
-  const [mealType, setMealType] = useState<MealType>(getDefaultMealType);
+  const [mealType, setMealType] = useState<MealType | null>(null);
   const { logExisting, loading } = useLogMeal();
 
   // When mode changes, convert the current amount to the new unit
@@ -155,11 +148,11 @@ export default function LogItemScreen() {
   }), [item, quantity]);
 
   async function handleLog() {
-    if (amount <= 0) return;
+    if (!mealType || amount <= 0) return;
     try {
       await logExisting({
         foodItem: item,
-        mealType,
+        mealType: mealType!,
         dateId: getTodayDateId(),
         quantity,
       });
@@ -275,7 +268,6 @@ export default function LogItemScreen() {
                     key={opt.type}
                     style={[styles.pill, active && styles.pillActive]}
                     onPress={() => setMealType(opt.type)}
-                    android_ripple={{ color: Colors.primaryContainer }}
                   >
                     <Text style={styles.pillIcon}>{opt.icon}</Text>
                     <Text style={[styles.pillLabel, active && styles.pillLabelActive]}>
@@ -289,9 +281,9 @@ export default function LogItemScreen() {
 
           {/* ── CTA ── */}
           <Pressable
-            style={[styles.cta, (loading || amount <= 0) && styles.ctaDisabled]}
+            style={[styles.cta, (!mealType || loading || amount <= 0) && styles.ctaDisabled]}
             onPress={handleLog}
-            disabled={loading || amount <= 0}
+            disabled={!mealType || loading || amount <= 0}
             android_ripple={{ color: Colors.primaryContainer }}
           >
             {loading
@@ -299,7 +291,7 @@ export default function LogItemScreen() {
               : <Ionicons name="add-circle" size={20} color={Colors.onPrimary} />
             }
             <Text style={styles.ctaLabel}>
-              {loading ? 'Logging…' : `Log ${preview.kcal} kcal`}
+              {loading ? 'Logging…' : mealType ? `Log ${preview.kcal} kcal` : 'Select a meal type'}
             </Text>
           </Pressable>
 

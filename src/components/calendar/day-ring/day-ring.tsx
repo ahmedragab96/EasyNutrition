@@ -6,9 +6,9 @@ import { Colors } from '@/constants/theme';
 import { styles } from './day-ring.styles';
 
 function progressColor(p: number): string {
-  if (p <= 0.65) return Colors.primary;
-  if (p <= 0.85) return '#c47800';
-  return Colors.tertiary;
+  if (p >= 0.85) return Colors.primary;   // green  — at/near goal
+  if (p >= 0.50) return '#c47800';        // amber  — getting closer
+  return Colors.tertiary;                 // red    — far from goal
 }
 
 export type DayRingProps = {

@@ -29,14 +29,22 @@ import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  LayoutAnimation,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  UIManager,
   useWindowDimensions,
   View,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DayRing } from '@/components/calendar/day-ring';
@@ -163,6 +171,10 @@ const hStyles = StyleSheet.create({
   chipLabelActive: { color: Colors.onPrimaryContainer },
 });
 
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
+
 // ─── Day Detail Panel ─────────────────────────────────────────────────────────
 
 type DayDetailProps = {
@@ -171,6 +183,73 @@ type DayDetailProps = {
   summary: DailySummary;
   loading: boolean;
 };
+
+const MEAL_TYPE_ORDER: Meal['type'][] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'];
+
+const MEAL_TYPE_META: Record<Meal['type'], { label: string; icon: string }> = {
+  BREAKFAST: { label: 'Breakfast', icon: '🌅' },
+  LUNCH:     { label: 'Lunch',     icon: '🌞' },
+  DINNER:    { label: 'Dinner',    icon: '🌙' },
+  SNACK:     { label: 'Snack',     icon: '🍎' },
+};
+
+// ─── MealGroup (accordion) ────────────────────────────────────────────────────
+
+type MealGroupProps = { type: Meal['type']; meals: Meal[] };
+
+function MealGroup({ type, meals }: MealGroupProps) {
+  const [expanded, setExpanded] = useState(false);
+  const rotation = useSharedValue(0);
+
+  const chevronStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  function toggle() {
+    LayoutAnimation.configureNext({
+      duration: 220,
+      update: { type: 'easeInEaseOut' },
+      create: { type: 'easeInEaseOut', property: 'opacity' },
+      delete: { type: 'easeInEaseOut', property: 'opacity' },
+    });
+    rotation.value = withTiming(expanded ? 0 : 180, { duration: 220 });
+    setExpanded((v) => !v);
+  }
+
+  const { label, icon } = MEAL_TYPE_META[type];
+  const totalKcal = meals.reduce((s, m) => s + m.kcal, 0);
+
+  return (
+    <View style={agStyles.root}>
+      {/* ── Header row (always visible) ── */}
+      <Pressable
+        style={agStyles.header}
+        onPress={toggle}
+        android_ripple={{ color: Colors.surfaceContainerHigh }}
+      >
+        <View style={agStyles.headerLeft}>
+          <Text style={agStyles.icon}>{icon}</Text>
+          <Text style={agStyles.label}>{label}</Text>
+        </View>
+        <View style={agStyles.headerRight}>
+          <Text style={agStyles.kcal}>{totalKcal} kcal</Text>
+          <Animated.View style={chevronStyle}>
+            <Ionicons name="chevron-down" size={16} color={Colors.onSurfaceVariant} />
+          </Animated.View>
+        </View>
+      </Pressable>
+
+      {/* ── Expandable meal list ── */}
+      {expanded && (
+        <View style={agStyles.content}>
+          {meals.map((meal) => (
+            <MealCard key={meal.id} meal={meal} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
 
 function DayDetail({ dateId, meals, summary, loading }: DayDetailProps) {
   const date = fromDateId(dateId);
@@ -181,6 +260,10 @@ function DayDetail({ dateId, meals, summary, loading }: DayDetailProps) {
   const percent = hasData
     ? Math.round((summary.caloriesConsumed / summary.caloriesGoal) * 100)
     : 0;
+
+  const groups = MEAL_TYPE_ORDER
+    .map((type) => ({ type, meals: meals.filter((m) => m.type === type) }))
+    .filter((g) => g.meals.length > 0);
 
   return (
     <View style={dStyles.root}>
@@ -204,10 +287,10 @@ function DayDetail({ dateId, meals, summary, loading }: DayDetailProps) {
       {/* Meals */}
       {loading ? (
         <ActivityIndicator color={Colors.primary} />
-      ) : meals.length > 0 ? (
+      ) : groups.length > 0 ? (
         <View style={dStyles.mealList}>
-          {meals.map((meal) => (
-            <MealCard key={meal.id} meal={meal} />
+          {groups.map(({ type, meals: groupMeals }) => (
+            <MealGroup key={type} type={type} meals={groupMeals} />
           ))}
         </View>
       ) : (
@@ -219,6 +302,47 @@ function DayDetail({ dateId, meals, summary, loading }: DayDetailProps) {
     </View>
   );
 }
+
+const agStyles = StyleSheet.create({
+  root: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  icon: { fontSize: 16 },
+  label: {
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.displaySemiBold,
+    color: Colors.onSurface,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  kcal: {
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurfaceVariant,
+  },
+  content: {
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingBottom: Spacing.two,
+  },
+});
 
 const dStyles = StyleSheet.create({
   root: {
@@ -266,7 +390,7 @@ const dStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mealList: { gap: Spacing.three },
+  mealList: { gap: Spacing.two },
   emptyState: {
     alignItems: 'center',
     paddingVertical: Spacing.six,

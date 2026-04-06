@@ -9,9 +9,8 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { BarcodeScanningResult, CameraView, useCameraPermissions } from 'expo-camera';
-import { router } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -34,11 +33,9 @@ import {
   Radius,
   Spacing,
 } from '@/constants/theme';
-import { useBarcodeLookup } from '@/hooks/use-barcode-lookup';
 import { useFoodSearch } from '@/hooks/use-food-search';
 import { useLogMeal } from '@/hooks/use-log-meal';
 import { useMealAnalysis } from '@/hooks/use-meal-analysis';
-import { BarcodeProduct } from '@/services/barcode-lookup';
 import { type MealAnalysisResult } from '@/services/meal-analysis';
 import { FoodItem, MealType } from '@/types/nutrition';
 
@@ -65,6 +62,13 @@ const MEAL_TYPE_LABEL: Record<MealType, string> = {
   SNACK: 'Snack',
 };
 
+function getDefaultMealType(): MealType {
+  const hour = new Date().getHours();
+  if (hour >= 5  && hour < 11) return 'BREAKFAST';
+  if (hour >= 11 && hour < 15) return 'LUNCH';
+  if (hour >= 18 && hour < 22) return 'DINNER';
+  return 'SNACK';
+}
 
 function getTodayDateId(): string {
   const d = new Date();
@@ -73,37 +77,32 @@ function getTodayDateId(): string {
 
 // ─── Mode Selector ────────────────────────────────────────────────────────────
 
-type Mode = 'camera' | 'barcode' | 'manual';
+type Mode = 'camera' | 'manual';
 
 type ModeSelectorProps = {
   value: Mode;
   onChange: (m: Mode) => void;
 };
 
-const MODE_CONFIG: { mode: Mode; icon: string; label: string }[] = [
-  { mode: 'camera',  icon: 'camera',    label: 'Camera'  },
-  { mode: 'barcode', icon: 'barcode',   label: 'Barcode' },
-  { mode: 'manual',  icon: 'search',    label: 'Manual'  },
-];
-
 function ModeSelector({ value, onChange }: ModeSelectorProps) {
   return (
     <View style={msStyles.track}>
-      {MODE_CONFIG.map(({ mode, icon, label }) => {
-        const active = value === mode;
+      {(['camera', 'manual'] as Mode[]).map((m) => {
+        const active = value === m;
         return (
           <Pressable
-            key={mode}
+            key={m}
             style={[msStyles.option, active && msStyles.optionActive]}
-            onPress={() => onChange(mode)}
+            onPress={() => onChange(m)}
+            android_ripple={{ color: Colors.primaryContainer }}
           >
             <Ionicons
-              name={icon as any}
+              name={m === 'camera' ? 'camera' : 'search'}
               size={16}
               color={active ? Colors.onPrimaryContainer : Colors.onSurfaceVariant}
             />
             <Text style={[msStyles.label, active && msStyles.labelActive]}>
-              {label}
+              {m === 'camera' ? 'Camera' : 'Manual'}
             </Text>
           </Pressable>
         );
@@ -148,7 +147,7 @@ function CameraPane() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<MealAnalysisResult | null>(null);
-  const [mealType, setMealType] = useState<MealType | null>(null);
+  const [mealType, setMealType] = useState<MealType>(getDefaultMealType);
   const cameraRef = useRef<CameraView>(null);
   const { analyze } = useMealAnalysis();
 
@@ -246,6 +245,7 @@ function CameraPane() {
       <ResultCard
         photoUri={photoUri}
         result={aiResult}
+        mealType={mealType}
         onRetake={handleReset}
         onConfirm={handleReset}
       />
@@ -397,11 +397,10 @@ type PreviewPaneProps = {
 
 function PreviewPane({ photoUri, onRetake, onAnalyse }: PreviewPaneProps) {
   const [description, setDescription] = useState('');
-  const [mealType, setMealType] = useState<MealType | null>(null);
+  const [mealType, setMealType] = useState<MealType>(getDefaultMealType);
   const [analyzing, setAnalyzing] = useState(false);
 
   async function handleSubmit() {
-    if (!mealType) return;
     setAnalyzing(true);
     try {
       await onAnalyse(description, mealType);
@@ -477,9 +476,9 @@ function PreviewPane({ photoUri, onRetake, onAnalyse }: PreviewPaneProps) {
 
       {/* ── Analyse CTA ── */}
       <Pressable
-        style={[pvStyles.ctaBtn, (!mealType || analyzing) && pvStyles.ctaBtnBusy]}
+        style={[pvStyles.ctaBtn, analyzing && pvStyles.ctaBtnBusy]}
         onPress={handleSubmit}
-        disabled={!mealType || analyzing}
+        disabled={analyzing}
         android_ripple={{ color: Colors.primaryContainer }}
       >
         {analyzing
@@ -605,16 +604,15 @@ const pvStyles = StyleSheet.create({
 type ResultCardProps = {
   photoUri: string | null;
   result: MealAnalysisResult;
+  mealType: MealType;
   onRetake: () => void;
   onConfirm: () => void;
 };
 
-function ResultCard({ photoUri, result, onRetake, onConfirm }: ResultCardProps) {
+function ResultCard({ photoUri, result, mealType, onRetake, onConfirm }: ResultCardProps) {
   const { logFromScan, loading: logging } = useLogMeal();
-  const [mealType, setMealType] = useState<MealType | null>(null);
 
   async function handleConfirm() {
-    if (!mealType) return;
     try {
       await logFromScan({
         name: result.name,
@@ -665,11 +663,16 @@ function ResultCard({ photoUri, result, onRetake, onConfirm }: ResultCardProps) 
         </View>
       </View>
 
-      {/* ── Confidence stat ── */}
+      {/* ── Stats ── */}
       <View style={rcStyles.statsRow}>
-        <View style={[rcStyles.statCard, { flex: 0, paddingHorizontal: Spacing.six }]}>
+        <View style={rcStyles.statCard}>
           <Text style={rcStyles.statValue}>{result.confidence}%</Text>
           <Text style={rcStyles.statLabel}>AI CONFIDENCE</Text>
+        </View>
+        <View style={rcStyles.statDivider} />
+        <View style={rcStyles.statCard}>
+          <Text style={rcStyles.statValue}>{MEAL_TYPE_LABEL[mealType]}</Text>
+          <Text style={rcStyles.statLabel}>MEAL TYPE</Text>
         </View>
       </View>
 
@@ -687,33 +690,11 @@ function ResultCard({ photoUri, result, onRetake, onConfirm }: ResultCardProps) 
         </View>
       </View>
 
-      {/* ── Meal type ── */}
-      <View style={rcStyles.macroCard}>
-        <Text style={rcStyles.macroTitle}>Meal Type</Text>
-        <View style={pvStyles.pillRow}>
-          {MEAL_TYPE_OPTIONS.map((opt) => {
-            const active = mealType === opt.type;
-            return (
-              <Pressable
-                key={opt.type}
-                style={[pvStyles.pill, active && pvStyles.pillActive]}
-                onPress={() => setMealType(opt.type)}
-              >
-                <Text style={pvStyles.pillIcon}>{opt.icon}</Text>
-                <Text style={[pvStyles.pillLabel, active && pvStyles.pillLabelActive]}>
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
       {/* ── CTA ── */}
       <Pressable
-        style={[rcStyles.ctaBtn, (!mealType || logging) && rcStyles.ctaBtnBusy]}
+        style={[rcStyles.ctaBtn, logging && rcStyles.ctaBtnBusy]}
         onPress={handleConfirm}
-        disabled={!mealType || logging}
+        disabled={logging}
         android_ripple={{ color: Colors.primaryContainer }}
       >
         {logging
@@ -913,371 +894,17 @@ const rcStyles = StyleSheet.create({
   },
 });
 
-// ─── Barcode Pane ─────────────────────────────────────────────────────────────
-
-function BarcodeScanPane() {
-  const [permission, requestPermission] = useCameraPermissions();
-  const { lookup, product, state, reset } = useBarcodeLookup();
-  const [mealType, setMealType] = useState<MealType | null>(null);
-  const scannedRef = useRef(false);
-
-  function handleBarcodeScan({ data }: BarcodeScanningResult) {
-    if (scannedRef.current) return;
-    scannedRef.current = true;
-    lookup(data);
-  }
-
-  function handleReset() {
-    scannedRef.current = false;
-    reset();
-  }
-
-  if (!permission) {
-    return <View style={cpStyles.centered}><ActivityIndicator color={Colors.primary} /></View>;
-  }
-
-  if (!permission.granted) {
-    return (
-      <View style={cpStyles.centered}>
-        <Ionicons name="barcode-outline" size={52} color={Colors.onSurfaceVariant} />
-        <Text style={cpStyles.permTitle}>Camera access needed</Text>
-        <Text style={cpStyles.permSub}>Allow camera access to scan barcodes.</Text>
-        <Pressable style={cpStyles.permBtn} onPress={requestPermission}>
-          <Text style={cpStyles.permBtnLabel}>Grant Access</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  if (state === 'found' && product) {
-    return (
-      <BarcodeResultCard
-        product={product}
-        mealType={mealType}
-        onMealTypeChange={setMealType}
-        onScanAgain={handleReset}
-      />
-    );
-  }
-
-  if (state === 'not_found') {
-    return (
-      <View style={cpStyles.centered}>
-        <View style={cpStyles.errorCard}>
-          <Ionicons name="search-outline" size={40} color={Colors.onSurfaceVariant} />
-          <Text style={cpStyles.errorTitle}>Product not found</Text>
-          <Text style={cpStyles.errorSub}>
-            This barcode isn't in the Open Food Facts database yet. Try adding it manually.
-          </Text>
-          <Pressable style={cpStyles.permBtn} onPress={handleReset}>
-            <Text style={cpStyles.permBtnLabel}>Scan Again</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  if (state === 'error') {
-    return (
-      <View style={cpStyles.centered}>
-        <View style={cpStyles.errorCard}>
-          <Ionicons name="alert-circle-outline" size={40} color={Colors.tertiary} />
-          <Text style={cpStyles.errorTitle}>Lookup failed</Text>
-          <Text style={cpStyles.errorSub}>Check your connection and try again.</Text>
-          <Pressable style={cpStyles.permBtn} onPress={handleReset}>
-            <Text style={cpStyles.permBtnLabel}>Try Again</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  // scanning or loading
-  return (
-    <View style={cpStyles.viewfinder}>
-      <CameraView
-        style={cpStyles.camera}
-        facing="back"
-        onBarcodeScanned={state === 'loading' ? undefined : handleBarcodeScan}
-        barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'] }}
-      >
-        {/* Corner guides */}
-        <View style={cpStyles.guideTopLeft} />
-        <View style={cpStyles.guideTopRight} />
-        <View style={cpStyles.guideBottomLeft} />
-        <View style={cpStyles.guideBottomRight} />
-
-        {/* Scan line */}
-        <View style={bpStyles.scanLine} />
-
-        <View style={cpStyles.hint}>
-          <Text style={cpStyles.hintText}>
-            {state === 'loading' ? 'Looking up product…' : 'Point at a barcode'}
-          </Text>
-        </View>
-      </CameraView>
-
-      {state === 'loading' && (
-        <View style={bpStyles.loadingOverlay}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      )}
-    </View>
-  );
-}
-
-type BarcodeResultCardProps = {
-  product: BarcodeProduct;
-  mealType: MealType | null;
-  onMealTypeChange: (t: MealType) => void;
-  onScanAgain: () => void;
-};
-
-function BarcodeResultCard({ product, mealType, onMealTypeChange, onScanAgain }: BarcodeResultCardProps) {
-  const { logFromScan, loading } = useLogMeal();
-  const [amountStr, setAmountStr] = useState('100');
-
-  const amount   = parseFloat(amountStr) || 0;
-  // Product stored per 100g — quantity is the multiplier for logMeal snapshots
-  const quantity = amount / 100;
-  const unit     = product.servingUnit === 'ml' ? 'ml' : 'g';
-
-  const preview = {
-    kcal:    Math.round(product.kcal    * quantity),
-    protein: Math.round(product.protein * quantity * 10) / 10,
-    carbs:   Math.round(product.carbs   * quantity * 10) / 10,
-    fats:    Math.round(product.fats    * quantity * 10) / 10,
-  };
-
-  async function handleConfirm() {
-    if (!mealType || amount <= 0) return;
-    try {
-      await logFromScan({
-        name: product.brand ? `${product.name} — ${product.brand}` : product.name,
-        kcal: product.kcal,
-        protein: product.protein,
-        carbs: product.carbs,
-        fats: product.fats,
-        mealType,
-        dateId: getTodayDateId(),
-        quantity,
-      });
-      onScanAgain();
-    } catch {
-      // error held in hook
-    }
-  }
-
-  return (
-    <ScrollView
-      style={rcStyles.scroll}
-      contentContainerStyle={rcStyles.content}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* ── Product card ── */}
-      <View style={bpStyles.productCard}>
-        <View style={bpStyles.barcodeBadge}>
-          <Ionicons name="barcode-outline" size={13} color={Colors.onPrimary} />
-          <Text style={bpStyles.barcodeBadgeText}>BARCODE SCAN</Text>
-        </View>
-        <Text style={bpStyles.productName} numberOfLines={2}>{product.name}</Text>
-        {product.brand && (
-          <Text style={bpStyles.productBrand}>{product.brand}</Text>
-        )}
-        <Text style={bpStyles.productServing}>Nutrition per 100 {unit}</Text>
-      </View>
-
-      {/* ── Amount input ── */}
-      <View style={rcStyles.macroCard}>
-        <Text style={rcStyles.macroTitle}>Amount consumed</Text>
-        <View style={bpStyles.amountRow}>
-          <TextInput
-            style={bpStyles.amountInput}
-            value={amountStr}
-            onChangeText={(t) => setAmountStr(t.replace(/[^0-9.]/g, ''))}
-            keyboardType="decimal-pad"
-            selectTextOnFocus
-            returnKeyType="done"
-          />
-          <Text style={bpStyles.amountUnit}>{unit}</Text>
-        </View>
-      </View>
-
-      {/* ── Live nutrition preview ── */}
-      <View style={rcStyles.macroCard}>
-        <Text style={rcStyles.macroTitle}>
-          Nutritional values
-          <Text style={bpStyles.macroSubInline}> for {amount > 0 ? amount : '–'} {unit}</Text>
-        </Text>
-        <View style={rcStyles.macroChips}>
-          <MacroChip label="KCAL"    value={preview.kcal}    unit=""  highlight />
-          <MacroChip label="PROTEIN" value={preview.protein} unit="g" />
-          <MacroChip label="CARBS"   value={preview.carbs}   unit="g" />
-          <MacroChip label="FATS"    value={preview.fats}    unit="g" />
-        </View>
-      </View>
-
-      {/* ── Meal type ── */}
-      <View style={rcStyles.macroCard}>
-        <Text style={rcStyles.macroTitle}>Meal Type</Text>
-        <View style={pvStyles.pillRow}>
-          {MEAL_TYPE_OPTIONS.map((opt) => {
-            const active = mealType === opt.type;
-            return (
-              <Pressable
-                key={opt.type}
-                style={[pvStyles.pill, active && pvStyles.pillActive]}
-                onPress={() => onMealTypeChange(opt.type)}
-              >
-                <Text style={pvStyles.pillIcon}>{opt.icon}</Text>
-                <Text style={[pvStyles.pillLabel, active && pvStyles.pillLabelActive]}>
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* ── CTAs ── */}
-      <Pressable
-        style={[rcStyles.ctaBtn, (!mealType || loading || amount <= 0) && rcStyles.ctaBtnBusy]}
-        onPress={handleConfirm}
-        disabled={!mealType || loading || amount <= 0}
-        android_ripple={{ color: Colors.primaryContainer }}
-      >
-        {loading
-          ? <ActivityIndicator size="small" color={Colors.onPrimary} />
-          : <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
-        }
-        <Text style={rcStyles.ctaLabel}>
-          {loading ? 'Logging…' : `Log ${preview.kcal} kcal`}
-        </Text>
-      </Pressable>
-
-      <Pressable style={bpStyles.scanAgainBtn} onPress={onScanAgain}>
-        <Ionicons name="barcode-outline" size={16} color={Colors.onSurfaceVariant} />
-        <Text style={bpStyles.scanAgainLabel}>Scan a different product</Text>
-      </Pressable>
-    </ScrollView>
-  );
-}
-
-const bpStyles = StyleSheet.create({
-  scanLine: {
-    position: 'absolute',
-    top: '48%',
-    left: 24,
-    right: 24,
-    height: 2,
-    backgroundColor: Colors.primary,
-    opacity: 0.8,
-    borderRadius: 1,
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(248,250,242,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  productCard: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.xxl,
-    padding: Spacing.five,
-    gap: Spacing.two,
-    shadowColor: Colors.onSurface,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 2,
-  },
-  barcodeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 3,
-    borderRadius: Radius.sm,
-    alignSelf: 'flex-start',
-  },
-  barcodeBadgeText: {
-    fontSize: FontSize.labelSm,
-    fontFamily: FontFamily.bodyBold,
-    color: Colors.onPrimary,
-    letterSpacing: 0.8,
-  },
-  productName: {
-    fontSize: FontSize.titleLg,
-    fontFamily: FontFamily.displayBold,
-    color: Colors.onSurface,
-    lineHeight: LineHeight.titleLg,
-  },
-  productBrand: {
-    fontSize: FontSize.bodyMd,
-    fontFamily: FontFamily.body,
-    color: Colors.onSurfaceVariant,
-  },
-  productServing: {
-    fontSize: FontSize.labelSm,
-    fontFamily: FontFamily.bodySemiBold,
-    color: Colors.onSurfaceVariant,
-    letterSpacing: 0.6,
-    marginTop: Spacing.one,
-  },
-  scanAgainBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.three,
-  },
-  scanAgainLabel: {
-    fontSize: FontSize.bodyMd,
-    fontFamily: FontFamily.bodySemiBold,
-    color: Colors.onSurfaceVariant,
-  },
-  amountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    backgroundColor: Colors.surfaceContainerHigh,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.four,
-    height: 56,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: FontSize.headlineSm,
-    fontFamily: FontFamily.displayBold,
-    color: Colors.onSurface,
-  },
-  amountUnit: {
-    fontSize: FontSize.titleSm,
-    fontFamily: FontFamily.bodySemiBold,
-    color: Colors.onSurfaceVariant,
-  },
-  macroSubInline: {
-    fontSize: FontSize.labelSm,
-    fontFamily: FontFamily.body,
-    color: Colors.onSurfaceVariant,
-  },
-});
-
 // ─── Manual Pane ──────────────────────────────────────────────────────────────
 
 function ManualPane() {
   const [query, setQuery] = useState('');
-  const { results, loading, isShowingRecent } = useFoodSearch(query);
+  const { results, loading } = useFoodSearch(query);
   const hasQuery = query.trim().length > 0;
 
   return (
     <View style={mpStyles.root}>
-      {/* ── Search bar + Add button ── */}
-      <View style={mpStyles.topRow}>
-        <View style={[mpStyles.searchBar, mpStyles.searchBarFlex]}>
-          <Ionicons name="search" size={18} color={Colors.onSurfaceVariant} />
+      <View style={mpStyles.searchBar}>
+        <Ionicons name="search" size={18} color={Colors.onSurfaceVariant} />
         <TextInput
           style={mpStyles.searchInput}
           placeholder="Search foods you've logged…"
@@ -1293,33 +920,22 @@ function ManualPane() {
             <Ionicons name="close-circle" size={18} color={Colors.onSurfaceVariant} />
           </Pressable>
         )}
-        </View>
-        <Pressable
-          style={mpStyles.addItemBtn}
-          onPress={() => router.push('/create-item')}
-          android_ripple={{ color: Colors.primaryContainer, borderless: true, radius: 22 }}
-          accessibilityLabel="Add new food item"
-        >
-          <Ionicons name="add" size={22} color={Colors.primary} />
-        </Pressable>
       </View>
 
-      {!loading && (
+      {hasQuery && !loading && (
         <Text style={mpStyles.sectionLabel}>
-          {isShowingRecent
-            ? results.length > 0 ? 'QUICK ADD' : ''
-            : `${results.length} result${results.length !== 1 ? 's' : ''}`}
+          {results.length} result{results.length !== 1 ? 's' : ''}
         </Text>
       )}
 
-      {loading ? (
-        <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.six }} />
-      ) : isShowingRecent && results.length === 0 ? (
+      {!hasQuery ? (
         <View style={mpStyles.empty}>
-          <Text style={mpStyles.emptyIcon}>🍽️</Text>
-          <Text style={mpStyles.emptyText}>No meals logged yet</Text>
-          <Text style={mpStyles.emptySub}>Use the camera to scan and log your first meal</Text>
+          <Text style={mpStyles.emptyIcon}>🔍</Text>
+          <Text style={mpStyles.emptyText}>Search your food log</Text>
+          <Text style={mpStyles.emptySub}>Type a food name to find items you've logged before</Text>
         </View>
+      ) : loading ? (
+        <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.six }} />
       ) : (
         <FlatList
           data={results}
@@ -1343,30 +959,10 @@ function ManualPane() {
 type FoodRowProps = { item: FoodItem };
 
 function FoodRow({ item }: FoodRowProps) {
-  function handlePress() {
-    router.push({
-      pathname: '/log-item',
-      params: {
-        id: item.id,
-        name: item.name,
-        kcal: String(item.kcal),
-        protein: String(item.macros.protein),
-        carbs: String(item.macros.carbs),
-        fats: String(item.macros.fats),
-        servingSize: String(item.servingSize ?? 100),
-        servingUnit: item.servingUnit ?? 'g',
-        isCountable: item.isCountable ? '1' : '0',
-        category: item.category ?? '',
-      },
-    });
-  }
+  const [added, setAdded] = useState(false);
 
   return (
-    <Pressable
-      style={frStyles.row}
-      onPress={handlePress}
-      android_ripple={{ color: Colors.surfaceContainerHigh }}
-    >
+    <View style={frStyles.row}>
       <View style={frStyles.icon}>
         <Text style={frStyles.iconEmoji}>
           {item.category ? (CATEGORY_ICON[item.category] ?? '🍽️') : '🍽️'}
@@ -1384,21 +980,24 @@ function FoodRow({ item }: FoodRowProps) {
         <Text style={frStyles.kcal}>{item.kcal}</Text>
         <Text style={frStyles.kcalUnit}>kcal</Text>
       </View>
-
-      <View style={frStyles.addBtn}>
-        <Ionicons name="chevron-forward" size={18} color={Colors.onSurfaceVariant} />
-      </View>
-    </Pressable>
+      <Pressable
+        style={[frStyles.addBtn, added && frStyles.addBtnDone]}
+        onPress={() => setAdded((v) => !v)}
+        android_ripple={{ color: Colors.primaryContainer, borderless: true, radius: 18 }}
+        accessibilityLabel={added ? 'Remove' : 'Add'}
+      >
+        <Ionicons
+          name={added ? 'checkmark' : 'add'}
+          size={18}
+          color={added ? Colors.onPrimaryContainer : Colors.onPrimary}
+        />
+      </Pressable>
+    </View>
   );
 }
 
 const mpStyles = StyleSheet.create({
   root: { flex: 1, gap: Spacing.three },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1407,20 +1006,6 @@ const mpStyles = StyleSheet.create({
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.four,
     height: 48,
-  },
-  searchBarFlex: { flex: 1 },
-  addItemBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceContainerLowest,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.onSurface,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
   },
   searchInput: {
     flex: 1,
@@ -1502,9 +1087,11 @@ const frStyles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  addBtnDone: { backgroundColor: Colors.primaryContainer },
 });
 
 // ─── AddScreen ────────────────────────────────────────────────────────────────
@@ -1522,9 +1109,7 @@ export default function AddScreen() {
       </View>
 
       <View style={styles.body}>
-        {mode === 'camera'  && <CameraPane />}
-        {mode === 'barcode' && <BarcodeScanPane />}
-        {mode === 'manual'  && <ManualPane />}
+        {mode === 'camera' ? <CameraPane /> : <ManualPane />}
       </View>
     </SafeAreaView>
   );
