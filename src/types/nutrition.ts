@@ -101,7 +101,7 @@ export type InsightsResult = {
 };
 
 export type InsightsPayload = {
-  goals: { kcal: number; protein: number; carbs: number; fats: number };
+  goals: { kcal: number; protein: number; carbs: number; fats: number; waterMl: number };
   daysInMonth: number;
   daysLogged: number;
   days: Array<{
@@ -111,6 +111,7 @@ export type InsightsPayload = {
     carbs: number;
     fats: number;
     mealsCount: number;
+    waterMl: number;
   }>;
   topFoods: string[];
   month: string;

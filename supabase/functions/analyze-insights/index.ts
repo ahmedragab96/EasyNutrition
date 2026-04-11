@@ -51,6 +51,7 @@ Deno.serve(async (req: Request) => {
   try {
     const payload = await req.json();
     const { goals, daysInMonth, daysLogged, days, topFoods, month } = payload;
+    const waterGoalMl: number = goals?.waterMl ?? 2000;
 
     console.log('[analyze-insights] payload received', {
       month,
@@ -73,6 +74,14 @@ Deno.serve(async (req: Request) => {
     const daysOnKcalGoal = days.filter(
       (d: { kcal: number }) => d.kcal >= goals.kcal * 0.85 && d.kcal <= goals.kcal * 1.15
     ).length;
+
+    // Water stats
+    const daysWithWater = days.filter((d: { waterMl: number }) => d.waterMl > 0).length;
+    const daysAtWaterGoal = days.filter((d: { waterMl: number }) => d.waterMl >= waterGoalMl).length;
+    const avgWaterMl = daysWithWater > 0
+      ? Math.round(days.filter((d: { waterMl: number }) => d.waterMl > 0)
+          .reduce((s: number, d: { waterMl: number }) => s + d.waterMl, 0) / daysWithWater)
+      : 0;
 
     const avgKcal = days.length
       ? Math.round(days.reduce((s: number, d: { kcal: number }) => s + d.kcal, 0) / days.length)
@@ -121,15 +130,15 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    type DayRow = { date: string; kcal: number; protein: number; carbs: number; fats: number; mealsCount: number };
+    type DayRow = { date: string; kcal: number; protein: number; carbs: number; fats: number; mealsCount: number; waterMl: number };
     const dailyLines = days.slice(0, 31)
-      .map((d: DayRow) => d.date + ': ' + d.kcal + 'kcal P' + d.protein + 'g C' + d.carbs + 'g F' + d.fats + 'g (' + d.mealsCount + ' meals)')
+      .map((d: DayRow) => d.date + ': ' + d.kcal + 'kcal P' + d.protein + 'g C' + d.carbs + 'g F' + d.fats + 'g (' + d.mealsCount + ' meals) water:' + d.waterMl + 'ml')
       .join('\n');
 
     const prompt = [
       'Analyse this user\'s nutrition data for ' + month + ' and return a JSON object.',
       '',
-      'USER GOALS: ' + goals.kcal + ' kcal | ' + goals.protein + 'g protein | ' + goals.carbs + 'g carbs | ' + goals.fats + 'g fats',
+      'USER GOALS: ' + goals.kcal + ' kcal | ' + goals.protein + 'g protein | ' + goals.carbs + 'g carbs | ' + goals.fats + 'g fats | ' + waterGoalMl + 'ml water',
       '',
       'MONTHLY STATS:',
       '- Days in month: ' + daysInMonth,
@@ -140,19 +149,24 @@ Deno.serve(async (req: Request) => {
       '- Best streak this month: ' + bestStreak,
       '- Best weekday (most consistent): ' + (bestWeekday || 'N/A'),
       '- Foods eaten: ' + (topFoods.length > 0 ? topFoods.slice(0, 20).join(', ') : 'none recorded'),
+      '- Water goal: ' + waterGoalMl + 'ml/day',
+      '- Days with water logged: ' + daysWithWater,
+      '- Days at water goal (>=' + waterGoalMl + 'ml): ' + daysAtWaterGoal,
+      '- Average water on tracked days: ' + avgWaterMl + 'ml',
       '',
-      'DAILY BREAKDOWN (date, kcal, protein, carbs, fats, mealsLogged):',
+      'DAILY BREAKDOWN (date, kcal, protein, carbs, fats, mealsLogged, water):',
       dailyLines,
       '',
       'Return a JSON object with exactly these keys:',
-      '- score: overall nutrition score 0-100 (integer) — base on goal adherence, macro balance, consistency, variety',
+      '- score: overall nutrition score 0-100 (integer) — base on goal adherence, macro balance, consistency, variety, and hydration',
       '- headline: one punchy sentence summarising the month (max 10 words)',
-      '- sections: array of exactly 4 objects, each with:',
-      '    - id: one of "consistency" | "macros" | "patterns" | "variety"',
+      '- sections: array of exactly 5 objects, each with:',
+      '    - id: one of "consistency" | "macros" | "patterns" | "variety" | "hydration"',
       '    - title: human-readable title',
       '    - rating: "good" | "fair" | "poor"',
       '    - insight: 1-2 specific sentences based on the data',
-      '- recommendations: array of 3-5 specific, actionable strings',
+      '  For "hydration": rate based on days at water goal vs days tracked. If no water logged at all, rating is "poor".',
+      '- recommendations: array of 3-5 specific, actionable strings (include water advice if hydration is fair/poor)',
       '- bestWeekday: "' + (bestWeekday || '') + '" (use this value)',
       '- currentStreak: ' + currentStreak + ' (use this value)',
       '- bestStreak: ' + bestStreak + ' (use this value)',

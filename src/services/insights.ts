@@ -1,8 +1,9 @@
 import { supabase } from '@/lib/supabase';
 import { InsightsPayload, InsightsResult } from '@/types/nutrition';
 import { getUserProfile } from './user-profile';
+import { getWaterForMonth } from './water-logs';
 
-const DEFAULT_GOALS = { kcal: 2000, protein: 150, carbs: 250, fats: 65 };
+const DEFAULT_GOALS = { kcal: 2000, protein: 150, carbs: 250, fats: 65, waterMl: 2000 };
 
 /**
  * Aggregates a month's meal logs + user goals into a compact payload
@@ -17,24 +18,26 @@ export async function getMonthInsightsPayload(
   const daysInMonth = new Date(year, month, 0).getDate();
   const lastDay = `${year}-${mm}-${String(daysInMonth).padStart(2, '0')}`;
 
-  const [profile, logsResult] = await Promise.all([
+  const [profile, logsResult, waterByDate] = await Promise.all([
     getUserProfile(),
     supabase
       .from('meal_logs')
       .select('date_id, kcal_snapshot, protein_snapshot, carbs_snapshot, fats_snapshot, food_item_id')
       .gte('date_id', firstDay)
       .lte('date_id', lastDay),
+    getWaterForMonth(year, month),
   ]);
 
   if (logsResult.error) throw new Error(logsResult.error.message);
 
   const goals = profile
     ? {
-        kcal: profile.calorieGoal,
-        protein: profile.macroGoals.protein,
-        carbs: profile.macroGoals.carbs,
-        fats: profile.macroGoals.fats,
-      }
+      kcal: profile.calorieGoal,
+      protein: profile.macroGoals.protein,
+      carbs: profile.macroGoals.carbs,
+      fats: profile.macroGoals.fats,
+      waterMl: 2000,
+    }
     : DEFAULT_GOALS;
 
   // Aggregate by date
@@ -68,7 +71,7 @@ export async function getMonthInsightsPayload(
 
   const days = Array.from(dayMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, data]) => ({ date, ...data }));
+    .map(([date, data]) => ({ date, ...data, waterMl: waterByDate[date] ?? 0 }));
 
   return {
     goals,

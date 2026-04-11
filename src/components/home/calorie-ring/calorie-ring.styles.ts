@@ -23,8 +23,6 @@ export const styles = StyleSheet.create({
     elevation: 4,
   },
   ringWrapper: {
-    width: 220,
-    height: 220,
     alignItems: 'center',
     justifyContent: 'center',
   },

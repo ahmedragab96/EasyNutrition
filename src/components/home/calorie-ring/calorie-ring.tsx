@@ -13,25 +13,17 @@ import { Colors } from '@/constants/theme';
 import { DailySummary } from '@/types/nutrition';
 import { styles } from './calorie-ring.styles';
 
-// ─── Ring geometry ────────────────────────────────────────────────────────────
-
-const SIZE = 220;
-const CENTER = SIZE / 2;
-const STROKE_WIDTH = 18;
-const RADIUS = CENTER - STROKE_WIDTH / 2 - 4;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // ─── Sub-component ────────────────────────────────────────────────────────────
 
-type StatItemProps = { label: string; value: number };
+type StatItemProps = { label: string; value: number; scale: number };
 
-function StatItem({ label, value }: StatItemProps) {
+function StatItem({ label, value, scale }: StatItemProps) {
   return (
     <View style={styles.statItem}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value.toLocaleString()}</Text>
+      <Text style={[styles.statLabel, { fontSize: 11 * scale }]}>{label}</Text>
+      <Text style={[styles.statValue, { fontSize: 18 * scale }]}>{value.toLocaleString()}</Text>
     </View>
   );
 }
@@ -40,9 +32,16 @@ function StatItem({ label, value }: StatItemProps) {
 
 type CalorieRingProps = {
   summary: DailySummary;
+  size?: number;
 };
 
-export function CalorieRing({ summary }: CalorieRingProps) {
+export function CalorieRing({ summary, size = 220 }: CalorieRingProps) {
+  const scale = size / 220;
+  const strokeWidth = Math.round(18 * scale);
+  const center = size / 2;
+  const radius = center - strokeWidth / 2 - 4 * scale;
+  const circumference = 2 * Math.PI * radius;
+
   const { caloriesConsumed, caloriesGoal, caloriesBurned } = summary;
   const caloriesLeft = Math.max(caloriesGoal - caloriesConsumed + caloriesBurned, 0);
   const targetProgress = Math.min(caloriesConsumed / caloriesGoal, 1);
@@ -63,49 +62,53 @@ export function CalorieRing({ summary }: CalorieRingProps) {
       [Colors.primary, Colors.primary, '#c47800', Colors.tertiary],
     );
     return {
-      strokeDashoffset: CIRCUMFERENCE * (1 - progress.value),
+      strokeDashoffset: circumference * (1 - progress.value),
       stroke,
     };
   });
 
   return (
     <View style={styles.card}>
-      <View style={styles.ringWrapper}>
-        <Svg width={SIZE} height={SIZE}>
+      <View style={[styles.ringWrapper, { width: size, height: size }]}>
+        <Svg width={size} height={size}>
           <Circle
-            cx={CENTER}
-            cy={CENTER}
-            r={RADIUS}
+            cx={center}
+            cy={center}
+            r={radius}
             stroke={Colors.surfaceContainerHighest}
-            strokeWidth={STROKE_WIDTH}
+            strokeWidth={strokeWidth}
             fill="none"
             strokeLinecap="round"
           />
           <AnimatedCircle
-            cx={CENTER}
-            cy={CENTER}
-            r={RADIUS}
-            strokeWidth={STROKE_WIDTH}
+            cx={center}
+            cy={center}
+            r={radius}
+            strokeWidth={strokeWidth}
             fill="none"
             strokeLinecap="round"
-            strokeDasharray={CIRCUMFERENCE}
+            strokeDasharray={circumference}
             animatedProps={animatedProps}
             rotation="-90"
-            origin={`${CENTER}, ${CENTER}`}
+            origin={`${center}, ${center}`}
           />
         </Svg>
 
         <View style={styles.centerOverlay} pointerEvents="none">
-          <Text style={styles.centerLabel}>CALORIES LEFT</Text>
-          <Text style={styles.centerNumber}>{caloriesLeft.toLocaleString()}</Text>
-          <Text style={styles.centerSub}>of {caloriesGoal.toLocaleString()} kcal</Text>
+          <Text style={[styles.centerLabel, { fontSize: 11 * scale }]}>CALORIES LEFT</Text>
+          <Text style={[styles.centerNumber, { fontSize: 56 * scale, lineHeight: 64 * scale }]}>
+            {caloriesLeft}
+          </Text>
+          <Text style={[styles.centerSub, { fontSize: 14 * scale }]}>
+            of {caloriesGoal} kcal
+          </Text>
         </View>
       </View>
 
       <View style={styles.statsRow}>
-        <StatItem label="EATEN" value={caloriesConsumed} />
+        <StatItem label="EATEN" value={caloriesConsumed} scale={scale} />
         <View style={styles.statDivider} />
-        <StatItem label="BURNED" value={caloriesBurned} />
+        <StatItem label="BURNED" value={caloriesBurned} scale={scale} />
       </View>
     </View>
   );

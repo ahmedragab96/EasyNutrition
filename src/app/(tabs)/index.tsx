@@ -23,9 +23,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CalorieRing } from '@/components/home/calorie-ring';
 import { MacroSection } from '@/components/home/macro-section';
 import { MealsList } from '@/components/home/meals-list';
+import { WaterTube } from '@/components/home/water-tube';
 import { Navbar } from '@/components/ui/navbar';
 import { Colors, Spacing } from '@/constants/theme';
 import { useDayLog } from '@/hooks/use-day-log';
+import { useWaterLog } from '@/hooks/use-water-log';
 
 const TODAY_ID = toDateId(new Date());
 
@@ -48,6 +50,7 @@ function formatDate(): string {
 
 export default function HomeScreen() {
   const { meals, summary, loading, refresh } = useDayLog(TODAY_ID);
+  const { waterMl, update: updateWater } = useWaterLog(TODAY_ID);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
@@ -71,8 +74,13 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
-            {/* ── Calorie Progress Ring ── */}
-            <CalorieRing summary={summary} />
+            {/* ── Calorie Ring + Water Tube ── */}
+            <View style={styles.heroRow}>
+              <View style={styles.ringWrapper}>
+                <CalorieRing summary={summary} size={170} />
+              </View>
+              <WaterTube waterMl={waterMl} onWaterChange={updateWater} />
+            </View>
 
             {/* ── Macro Nutrition Bars ── */}
             <MacroSection summary={summary} />
@@ -111,6 +119,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingTop: 60,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: Spacing.three,
+  },
+  ringWrapper: {
+    flex: 1,
   },
   bottomSpacer: {
     height: Spacing.eight,
