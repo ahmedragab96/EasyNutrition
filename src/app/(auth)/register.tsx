@@ -248,8 +248,9 @@ const styles = StyleSheet.create({
     fontSize: FontSize.headlineSm,
     fontFamily: FontFamily.displayBold,
     color: Colors.onSurface,
-    letterSpacing: -0.3,
     lineHeight: LineHeight.headlineSm,
+    width: '100%',
+    textAlign: 'center',
   },
   tagline: {
     fontSize: FontSize.bodyMd,

@@ -10,7 +10,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -125,8 +125,6 @@ export default function LoginScreen() {
               }
             </Pressable>
           </View>
-
-          {/* ── Footer ── */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
             <Link href="/(auth)/register" asChild>
@@ -170,13 +168,15 @@ const styles = StyleSheet.create({
     fontSize: FontSize.headlineSm,
     fontFamily: FontFamily.displayBold,
     color: Colors.onSurface,
-    letterSpacing: -0.3,
     lineHeight: LineHeight.headlineSm,
+    width: '100%',
+    textAlign: 'center',
   },
   tagline: {
     fontSize: FontSize.bodyMd,
     fontFamily: FontFamily.body,
     color: Colors.onSurfaceVariant,
+    textAlign: 'center',
   },
   card: {
     backgroundColor: Colors.surfaceContainerLowest,

@@ -10,13 +10,11 @@ export function useAuth(): AuthState {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-
+    // onAuthStateChange fires INITIAL_SESSION on mount with the persisted
+    // session from SecureStore — use it as the single source of truth.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
