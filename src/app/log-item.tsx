@@ -39,7 +39,7 @@ import {
   Spacing,
 } from '@/constants/theme';
 import { useLogMeal } from '@/hooks/use-log-meal';
-import { FoodItem, MealType } from '@/types/nutrition';
+import { FoodItem, FoodSource, MealType } from '@/types/nutrition';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -72,9 +72,11 @@ export default function LogItemScreen() {
     servingUnit?: string;
     isCountable?: string;
     category?: string;
+    source?: string;
   }>();
 
   const isCountable = params.isCountable === '1';
+  const isAiScan = params.source === 'ai_scan';
 
   // Reconstruct a minimal FoodItem from params
   const item: FoodItem = {
@@ -90,7 +92,7 @@ export default function LogItemScreen() {
     servingUnit: params.servingUnit ?? 'g',
     isCountable,
     category: params.category,
-    source: 'system',
+    source: (params.source as FoodSource) ?? 'system',
     isPublic: false,
     createdAt: '',
   };
@@ -148,13 +150,14 @@ export default function LogItemScreen() {
   }), [item, quantity]);
 
   async function handleLog() {
-    if (!mealType || amount <= 0) return;
+    if (!mealType) return;
+    if (!isAiScan && amount <= 0) return;
     try {
       await logExisting({
         foodItem: item,
         mealType: mealType!,
         dateId: getTodayDateId(),
-        quantity,
+        quantity: isAiScan ? 1 : quantity,
       });
       router.back();
     } catch {
@@ -183,9 +186,11 @@ export default function LogItemScreen() {
           <View style={styles.headerText}>
             <Text style={styles.headerTitle} numberOfLines={1}>{item.name}</Text>
             <Text style={styles.headerSub}>
-              {isCountable
-                ? `1 piece — ${item.kcal} kcal · per 100 ${unitLabel} — ${Math.round(item.kcal / servingSize * 100)} kcal`
-                : `per 100 ${unitLabel} — ${Math.round(item.kcal / servingSize * 100)} kcal`
+              {isAiScan
+                ? `AI analysed · ${item.kcal} kcal`
+                : isCountable
+                  ? `1 piece — ${item.kcal} kcal · per 100 ${unitLabel} — ${Math.round(item.kcal / servingSize * 100)} kcal`
+                  : `per 100 ${unitLabel} — ${Math.round(item.kcal / servingSize * 100)} kcal`
               }
             </Text>
           </View>
@@ -197,54 +202,58 @@ export default function LogItemScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Serving unit toggle ── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Serving Unit</Text>
-            <View style={styles.toggleRow}>
-              {(isCountable
-                ? ['piece', '1g', '100g'] as ServingUnit[]
-                : ['1g', '100g'] as ServingUnit[]
-              ).map((unit) => {
-                const active = servingMode === unit;
-                return (
-                  <Pressable
-                    key={unit}
-                    style={[styles.toggleOption, active && styles.toggleOptionActive]}
-                    onPress={() => setServingMode(unit)}
-                  >
-                    <Text style={[styles.toggleLabel, active && styles.toggleLabelActive]}>
-                      {unit === 'piece' ? 'Piece' : unit === '1g' ? `Per ${unitLabel}` : `Per 100 ${unitLabel}`}
-                    </Text>
-                    <Text style={[styles.toggleSub, active && styles.toggleSubActive]}>
-                      {unit === 'piece' ? 'Count pieces' : unit === '1g' ? `Enter total ${unitLabel}` : `Enter portions of 100 ${unitLabel}`}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* ── Amount input ── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Amount</Text>
-            <View style={styles.amountRow}>
-              <TextInput
-                style={styles.amountInput}
-                value={amountStr}
-                onChangeText={(t) => setAmountStr(t.replace(/[^0-9.]/g, ''))}
-                keyboardType="decimal-pad"
-                selectTextOnFocus
-                returnKeyType="done"
-              />
-              <View style={styles.amountUnit}>
-                <Text style={styles.amountUnitText}>
-                  {servingMode === 'piece'
-                    ? `piece${(parseFloat(amountStr) || 0) !== 1 ? 's' : ''}`
-                    : servingMode === '1g' ? unitLabel : `× 100 ${unitLabel}`}
-                </Text>
+          {/* ── Serving unit toggle (hidden for AI-scanned items) ── */}
+          {!isAiScan && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Serving Unit</Text>
+              <View style={styles.toggleRow}>
+                {(isCountable
+                  ? ['piece', '1g', '100g'] as ServingUnit[]
+                  : ['1g', '100g'] as ServingUnit[]
+                ).map((unit) => {
+                  const active = servingMode === unit;
+                  return (
+                    <Pressable
+                      key={unit}
+                      style={[styles.toggleOption, active && styles.toggleOptionActive]}
+                      onPress={() => setServingMode(unit)}
+                    >
+                      <Text style={[styles.toggleLabel, active && styles.toggleLabelActive]}>
+                        {unit === 'piece' ? 'Piece' : unit === '1g' ? `Per ${unitLabel}` : `Per 100 ${unitLabel}`}
+                      </Text>
+                      <Text style={[styles.toggleSub, active && styles.toggleSubActive]}>
+                        {unit === 'piece' ? 'Count pieces' : unit === '1g' ? `Enter total ${unitLabel}` : `Enter portions of 100 ${unitLabel}`}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
-          </View>
+          )}
+
+          {/* ── Amount input (hidden for AI-scanned items) ── */}
+          {!isAiScan && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Amount</Text>
+              <View style={styles.amountRow}>
+                <TextInput
+                  style={styles.amountInput}
+                  value={amountStr}
+                  onChangeText={(t) => setAmountStr(t.replace(/[^0-9.]/g, ''))}
+                  keyboardType="decimal-pad"
+                  selectTextOnFocus
+                  returnKeyType="done"
+                />
+                <View style={styles.amountUnit}>
+                  <Text style={styles.amountUnitText}>
+                    {servingMode === 'piece'
+                      ? `piece${(parseFloat(amountStr) || 0) !== 1 ? 's' : ''}`
+                      : servingMode === '1g' ? unitLabel : `× 100 ${unitLabel}`}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* ── Nutrition preview ── */}
           <View style={[styles.card, styles.previewCard]}>
@@ -281,9 +290,9 @@ export default function LogItemScreen() {
 
           {/* ── CTA ── */}
           <Pressable
-            style={[styles.cta, (!mealType || loading || amount <= 0) && styles.ctaDisabled]}
+            style={[styles.cta, (!mealType || loading || (!isAiScan && amount <= 0)) && styles.ctaDisabled]}
             onPress={handleLog}
-            disabled={!mealType || loading || amount <= 0}
+            disabled={!mealType || loading || (!isAiScan && amount <= 0)}
             android_ripple={{ color: Colors.primaryContainer }}
           >
             {loading
@@ -291,7 +300,13 @@ export default function LogItemScreen() {
               : <Ionicons name="add-circle" size={20} color={Colors.onPrimary} />
             }
             <Text style={styles.ctaLabel}>
-              {loading ? 'Logging…' : mealType ? `Log ${preview.kcal} kcal` : 'Select a meal type'}
+              {loading
+                ? 'Logging…'
+                : !mealType
+                  ? 'Select a meal type'
+                  : isAiScan
+                    ? `Log ${item.kcal} kcal`
+                    : `Log ${preview.kcal} kcal`}
             </Text>
           </Pressable>
 

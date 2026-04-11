@@ -55,6 +55,7 @@ Deno.serve(async (req: Request) => {
     const prompt = [
       'Analyze this food image and return a JSON object with exactly these keys:',
       '- name: concise food name (2–4 words)',
+      '- description: brief ingredient breakdown with estimated amounts, e.g. "200g chicken breast, 150g white rice, 50g broccoli" — list the main visible components',
       '- kcal: estimated calories for the visible portion (integer)',
       '- protein: protein in grams (number, one decimal)',
       '- carbs: carbohydrates in grams (number, one decimal)',
@@ -65,7 +66,7 @@ Deno.serve(async (req: Request) => {
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 256,
+      max_tokens: 512,
       system: SYSTEM_PROMPT,
       messages: [
         {

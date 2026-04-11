@@ -89,4 +89,23 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyMedium,
     color: Colors.onSurface,
   },
+  descriptionRow: {
+    paddingTop: Spacing.one,
+    borderTopWidth: 1,
+    borderTopColor: Colors.surfaceContainerHighest,
+    marginTop: Spacing.one,
+  },
+  descriptionLabel: {
+    fontSize: FontSize.labelSm,
+    fontFamily: FontFamily.bodyBold,
+    color: Colors.onSurfaceVariant,
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  descriptionText: {
+    fontSize: FontSize.labelSm,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+    lineHeight: LineHeight.labelSm,
+  },
 });

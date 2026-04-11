@@ -19,6 +19,8 @@ export type MacroGoal = {
 export type Meal = {
   id: string;
   name: string;
+  /** Ingredient breakdown from AI analysis, e.g. "200g chicken, 150g rice" */
+  description?: string;
   /** Display time e.g. "8:30 AM" */
   time: string;
   type: MealType;
@@ -75,6 +77,43 @@ export type MealLog = {
   quantity: number;
   snapshot: { kcal: number } & Macros;
   notes?: string;
+};
+
+// ─── Insights Types ───────────────────────────────────────────────────────────
+
+export type InsightRating = 'good' | 'fair' | 'poor';
+
+export type InsightSection = {
+  id: string;
+  title: string;
+  rating: InsightRating;
+  insight: string;
+};
+
+export type InsightsResult = {
+  score: number;
+  headline: string;
+  sections: InsightSection[];
+  recommendations: string[];
+  bestWeekday?: string;
+  currentStreak: number;
+  bestStreak: number;
+};
+
+export type InsightsPayload = {
+  goals: { kcal: number; protein: number; carbs: number; fats: number };
+  daysInMonth: number;
+  daysLogged: number;
+  days: Array<{
+    date: string;
+    kcal: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    mealsCount: number;
+  }>;
+  topFoods: string[];
+  month: string;
 };
 
 export type DailySummary = {

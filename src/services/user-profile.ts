@@ -1,6 +1,6 @@
+import { Database } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
 import { UserProfile } from '@/types/nutrition';
-import { Database } from '@/lib/database.types';
 
 type UserProfileRow = Database['public']['Tables']['user_profiles']['Row'];
 

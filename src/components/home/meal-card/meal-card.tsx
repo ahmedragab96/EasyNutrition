@@ -84,6 +84,13 @@ export function MealCard({ meal, onPress }: MealCardProps) {
               <MacroChip label="F" value={meal.macros.fats} />
             </View>
           </View>
+
+          {meal.description ? (
+            <View style={styles.descriptionRow}>
+              <Text style={styles.descriptionLabel}>INGREDIENTS</Text>
+              <Text style={styles.descriptionText}>{meal.description}</Text>
+            </View>
+          ) : null}
         </View>
       </Pressable>
     </Animated.View>

@@ -2,6 +2,8 @@ import { supabase } from '@/lib/supabase';
 
 export type MealAnalysisResult = {
   name: string;
+  /** Ingredient breakdown, e.g. "200g chicken breast, 150g rice, 50g broccoli" */
+  description?: string;
   kcal: number;
   protein: number;
   carbs: number;

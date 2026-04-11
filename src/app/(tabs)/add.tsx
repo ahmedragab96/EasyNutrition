@@ -618,6 +618,7 @@ function ResultCard({ photoUri, result, onRetake, onConfirm }: ResultCardProps) 
     try {
       await logFromScan({
         name: result.name,
+        description: result.description,
         kcal: result.kcal,
         protein: result.protein,
         carbs: result.carbs,
@@ -672,6 +673,17 @@ function ResultCard({ photoUri, result, onRetake, onConfirm }: ResultCardProps) 
           <Text style={rcStyles.statLabel}>AI CONFIDENCE</Text>
         </View>
       </View>
+
+      {/* ── Ingredient breakdown ── */}
+      {result.description ? (
+        <View style={rcStyles.macroCard}>
+          <View style={rcStyles.macroHeader}>
+            <Text style={rcStyles.macroTitle}>Ingredients</Text>
+            <Text style={rcStyles.macroSub}>Based on visual analysis</Text>
+          </View>
+          <Text style={rcStyles.descriptionText}>{result.description}</Text>
+        </View>
+      ) : null}
 
       {/* ── Macro mix ── */}
       <View style={rcStyles.macroCard}>
@@ -889,6 +901,14 @@ const rcStyles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   chipLabelHighlight: { color: Colors.onPrimaryContainer },
+
+  // ── Ingredient description ───────────────────────────────────────────────────
+  descriptionText: {
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+    lineHeight: LineHeight.bodyMd,
+  },
 
   // ── CTA ─────────────────────────────────────────────────────────────────────
   ctaBtn: {
@@ -1356,6 +1376,7 @@ function FoodRow({ item }: FoodRowProps) {
         servingSize: String(item.servingSize ?? 100),
         servingUnit: item.servingUnit ?? 'g',
         isCountable: item.isCountable ? '1' : '0',
+        source: item.source,
         category: item.category ?? '',
       },
     });

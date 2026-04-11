@@ -54,11 +54,11 @@ export function useDayLog(dateId: string): DayLogResult {
 
         const goals = profile ?? DEFAULT_GOALS;
 
-        // Enrich logs with food item names (batched)
-        const foodNames = await enrichWithNames(logs);
+        // Enrich logs with food item data (batched)
+        const foodData = await enrichWithFoodData(logs);
         if (cancelled) return;
 
-        const enrichedMeals = logs.map((log, i) => logToMeal(log, foodNames[i]));
+        const enrichedMeals = logs.map((log, i) => logToMeal(log, foodData[i]));
         const computed = computeSummary(logs, goals);
 
         setMeals(enrichedMeals);
@@ -78,25 +78,27 @@ export function useDayLog(dateId: string): DayLogResult {
   return { meals, summary, loading, error, refresh };
 }
 
-async function enrichWithNames(logs: MealLog[]): Promise<string[]> {
-  const names = await Promise.all(
+type FoodData = { name: string; description?: string };
+
+async function enrichWithFoodData(logs: MealLog[]): Promise<FoodData[]> {
+  return Promise.all(
     logs.map((log) =>
       getFoodItem(log.foodItemId)
-        .then((f) => f.name)
-        .catch(() => 'Unknown food')
+        .then((f) => ({ name: f.name, description: f.description }))
+        .catch(() => ({ name: 'Unknown food', description: undefined }))
     )
   );
-  return names;
 }
 
-function logToMeal(log: MealLog, name: string): Meal {
+function logToMeal(log: MealLog, food: FoodData): Meal {
   const time = new Date(log.loggedAt).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
   });
   return {
     id: log.id,
-    name,
+    name: food.name,
+    description: food.description,
     time,
     type: log.mealType,
     kcal: log.snapshot.kcal,
