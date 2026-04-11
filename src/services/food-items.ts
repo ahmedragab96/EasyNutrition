@@ -90,7 +90,7 @@ export async function getRecentFoodItems(limit = 20): Promise<FoodItem[]> {
 
   // Re-sort to match the recency order from meal_logs
   const itemMap = new Map((data ?? []).map((r) => [r.id, r]));
-  return recentIds.map((id) => itemMap.get(id)).filter(Boolean).map(toFoodItem);
+  return recentIds.map((id) => itemMap.get(id)).filter((r): r is FoodItemRow => r !== undefined).map(toFoodItem);
 }
 
 /**
