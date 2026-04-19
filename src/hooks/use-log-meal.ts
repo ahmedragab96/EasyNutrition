@@ -18,6 +18,9 @@ type LogFromScanInput = {
   protein: number;
   carbs: number;
   fats: number;
+  servingSize?: number;
+  servingUnit?: string;
+  source?: FoodSource;
   aiConfidence?: number;
   mealType: MealType;
   dateId: string;
@@ -66,8 +69,10 @@ export function useLogMeal(): UseLogMealResult {
         protein: input.protein,
         carbs: input.carbs,
         fats: input.fats,
+        servingSize: input.servingSize,
+        servingUnit: input.servingUnit,
         aiConfidence: input.aiConfidence,
-        source: 'ai_scan' as FoodSource,
+        source: input.source ?? 'ai_scan',
         mealType: input.mealType,
       });
 

@@ -99,6 +99,7 @@ function FoodRow({ item }: { item: FoodItem }) {
       params: {
         id: item.id,
         name: item.name,
+        description: item.description ?? '',
         kcal: String(item.kcal),
         protein: String(item.macros.protein),
         carbs: String(item.macros.carbs),

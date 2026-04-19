@@ -11,13 +11,13 @@ import {
   View,
 } from 'react-native';
 
-import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
+import { Colors, FontFamily, FontSize, LineHeight, Radius, Spacing } from '@/constants/theme';
 import { useBarcodeLookup } from '@/hooks/use-barcode-lookup';
 import { useLogMeal } from '@/hooks/use-log-meal';
 import { BarcodeProduct } from '@/services/barcode-lookup';
 import { MealType } from '@/types/nutrition';
 import { getTodayDateId } from '../add-shared/add-constants';
-import { CameraErrorView, CameraPermissionView, MacroChip, MealTypePills } from '../add-shared/add-shared';
+import { CameraErrorView, CameraPermissionView, DateSelector, MacroChip, MealTypePills } from '../add-shared/add-shared';
 import { cardStyles, chipStyles } from '../add-shared/add-shared.styles';
 
 // ─── BarcodeScanPane ──────────────────────────────────────────────────────────
@@ -130,6 +130,7 @@ type BarcodeResultCardProps = {
 function BarcodeResultCard({ product, mealType, onMealTypeChange, onScanAgain }: BarcodeResultCardProps) {
   const { logFromScan, loading } = useLogMeal();
   const [amountStr, setAmountStr] = useState('100');
+  const [dateId, setDateId] = useState(getTodayDateId());
 
   const amount = parseFloat(amountStr) || 0;
   const quantity = amount / 100;
@@ -147,12 +148,16 @@ function BarcodeResultCard({ product, mealType, onMealTypeChange, onScanAgain }:
     try {
       await logFromScan({
         name: product.brand ? `${product.name} — ${product.brand}` : product.name,
+        description: product.description,
         kcal: product.kcal,
         protein: product.protein,
         carbs: product.carbs,
         fats: product.fats,
+        servingSize: product.servingSize,
+        servingUnit: product.servingUnit,
+        source: 'barcode',
         mealType,
-        dateId: getTodayDateId(),
+        dateId,
         quantity,
       });
       onScanAgain();
@@ -178,6 +183,14 @@ function BarcodeResultCard({ product, mealType, onMealTypeChange, onScanAgain }:
         {product.brand && <Text style={styles.productBrand}>{product.brand}</Text>}
         <Text style={styles.productServing}>Nutrition per 100 {unit}</Text>
       </View>
+
+      {/* ── Ingredients ── */}
+      {product.description ? (
+        <View style={cardStyles.card}>
+          <Text style={cardStyles.cardTitle}>Ingredients</Text>
+          <Text style={styles.ingredientsText}>{product.description}</Text>
+        </View>
+      ) : null}
 
       {/* ── Amount input ── */}
       <View style={cardStyles.card}>
@@ -213,6 +226,12 @@ function BarcodeResultCard({ product, mealType, onMealTypeChange, onScanAgain }:
       <View style={cardStyles.card}>
         <Text style={cardStyles.cardTitle}>Meal Type</Text>
         <MealTypePills value={mealType} onChange={onMealTypeChange} />
+      </View>
+
+      {/* ── Date ── */}
+      <View style={cardStyles.card}>
+        <Text style={cardStyles.cardTitle}>Log Date</Text>
+        <DateSelector value={dateId} onChange={setDateId} />
       </View>
 
       {/* ── CTAs ── */}
@@ -342,6 +361,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.titleSm,
     fontFamily: FontFamily.bodySemiBold,
     color: Colors.onSurfaceVariant,
+  },
+  ingredientsText: {
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+    lineHeight: LineHeight.bodyMd,
   },
   cardSubInline: {
     fontSize: FontSize.labelSm,

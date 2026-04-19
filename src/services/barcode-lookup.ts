@@ -7,6 +7,7 @@
 export type BarcodeProduct = {
   name: string;
   brand?: string;
+  description?: string;
   kcal: number;
   protein: number;
   carbs: number;
@@ -19,7 +20,7 @@ export type BarcodeProduct = {
 export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | null> {
   const url =
     `https://world.openfoodfacts.net/api/v2/product/${barcode}` +
-    `?fields=product_name,brands,nutriments,serving_size`;
+    `?fields=product_name,brands,nutriments,serving_size,ingredients_text`;
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'EasyNutrition/1.0 (nutrition tracking app)' },
@@ -36,9 +37,12 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | n
   const name = (p.product_name ?? '').trim();
   if (!name) return null;
 
+  const ingredients = (p.ingredients_text ?? '').trim();
+
   return {
     name,
     brand: p.brands ? p.brands.split(',')[0].trim() : undefined,
+    description: ingredients || undefined,
     kcal:    Math.round(n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0),
     protein: Math.round((n['proteins_100g']      ?? 0) * 10) / 10,
     carbs:   Math.round((n['carbohydrates_100g'] ?? 0) * 10) / 10,

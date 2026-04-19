@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -39,6 +40,21 @@ export function CameraPane() {
     } catch {
       setCameraState('error');
     }
+  }
+
+  async function handlePickImage() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      base64: true,
+      allowsEditing: true,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    if (!asset.base64) return;
+    setPhotoUri(asset.uri);
+    setPhotoBase64(asset.base64);
+    setCameraState('preview');
   }
 
   async function handleAnalyse(description: string, type: MealType) {
@@ -111,6 +127,16 @@ export function CameraPane() {
       </CameraView>
       <View style={styles.captureRow}>
         <Pressable
+          onPress={handlePickImage}
+          style={styles.galleryBtn}
+          accessibilityLabel="Pick from gallery"
+          android_ripple={{ color: Colors.surfaceContainerHigh, borderless: true, radius: 26 }}
+        >
+          <Ionicons name="images-outline" size={26} color={Colors.onSurface} />
+          <Text style={styles.galleryLabel}>Gallery</Text>
+        </Pressable>
+
+        <Pressable
           onPress={handleCapture}
           style={styles.captureBtn}
           accessibilityLabel="Take photo"
@@ -118,6 +144,9 @@ export function CameraPane() {
         >
           <View style={styles.captureInner} />
         </Pressable>
+
+        {/* spacer to keep capture button centred */}
+        <View style={styles.galleryBtn} />
       </View>
     </View>
   );
@@ -145,7 +174,24 @@ const styles = StyleSheet.create({
   guideTopRight:    { position: 'absolute', top: 24,    right: 24,   width: 22, height: 22, borderTopWidth: 2.5,    borderRightWidth: 2.5,  borderColor: '#ffffff', borderTopRightRadius: 4    },
   guideBottomLeft:  { position: 'absolute', bottom: 24, left: 24,    width: 22, height: 22, borderBottomWidth: 2.5, borderLeftWidth: 2.5,   borderColor: '#ffffff', borderBottomLeftRadius: 4  },
   guideBottomRight: { position: 'absolute', bottom: 24, right: 24,   width: 22, height: 22, borderBottomWidth: 2.5, borderRightWidth: 2.5,  borderColor: '#ffffff', borderBottomRightRadius: 4 },
-  captureRow: { height: 100, alignItems: 'center', justifyContent: 'center' },
+  captureRow: {
+    height: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.eight,
+  },
+  galleryBtn: {
+    width: 68,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
+  },
+  galleryLabel: {
+    fontSize: FontSize.labelSm,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurface,
+  },
   captureBtn: {
     width: 68,
     height: 68,

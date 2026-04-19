@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StatusBar, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BarcodeScanPane } from '@/components/add/barcode-scan-pane';
@@ -21,11 +21,14 @@ export default function AddScreen() {
         <ModeSelector value={mode} onChange={setMode} />
       </View>
 
-      <View style={styles.body}>
+      <KeyboardAvoidingView
+        style={styles.body}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         {mode === 'camera'  && <CameraPane />}
         {mode === 'barcode' && <BarcodeScanPane />}
         {mode === 'manual'  && <ManualPane />}
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

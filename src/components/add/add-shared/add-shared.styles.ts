@@ -101,6 +101,33 @@ export const cardStyles = StyleSheet.create({
   },
 });
 
+// ─── Date selector (used in AiResultCard, BarcodeResultCard) ─────────────────
+
+export const dateSelectorStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  arrowBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  arrowBtnDisabled: { opacity: 0.35 },
+  label: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.displaySemiBold,
+    color: Colors.onSurface,
+  },
+  labelToday: { color: Colors.primary },
+});
+
 // ─── Camera permission / error (used in CameraPane, BarcodeScanPane) ─────────
 
 export const cameraSharedStyles = StyleSheet.create({

@@ -38,6 +38,8 @@ import {
   Radius,
   Spacing,
 } from '@/constants/theme';
+import { getTodayDateId } from '@/components/add/add-shared/add-constants';
+import { DateSelector } from '@/components/add/add-shared/add-shared';
 import { useLogMeal } from '@/hooks/use-log-meal';
 import { FoodItem, FoodSource, MealType } from '@/types/nutrition';
 
@@ -51,11 +53,6 @@ const MEAL_TYPE_OPTIONS: { type: MealType; label: string; icon: string }[] = [
 ];
 
 
-function getTodayDateId(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 type ServingUnit = 'piece' | '1g' | '100g';
 
 // ─── LogItemScreen ────────────────────────────────────────────────────────────
@@ -64,6 +61,7 @@ export default function LogItemScreen() {
   const params = useLocalSearchParams<{
     id: string;
     name: string;
+    description?: string;
     kcal: string;
     protein: string;
     carbs: string;
@@ -82,6 +80,7 @@ export default function LogItemScreen() {
   const item: FoodItem = {
     id: params.id,
     name: params.name,
+    description: params.description || undefined,
     kcal: Number(params.kcal),
     macros: {
       protein: Number(params.protein),
@@ -100,6 +99,7 @@ export default function LogItemScreen() {
   const [servingMode, setServingMode] = useState<ServingUnit>(isCountable ? 'piece' : '100g');
   const [amountStr, setAmountStr] = useState('1');
   const [mealType, setMealType] = useState<MealType | null>(null);
+  const [dateId, setDateId] = useState(getTodayDateId());
   const { logExisting, loading } = useLogMeal();
 
   // When mode changes, convert the current amount to the new unit
@@ -156,7 +156,7 @@ export default function LogItemScreen() {
       await logExisting({
         foodItem: item,
         mealType: mealType!,
-        dateId: getTodayDateId(),
+        dateId,
         quantity: isAiScan ? 1 : quantity,
       });
       router.back();
@@ -202,6 +202,14 @@ export default function LogItemScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* ── Description (AI-scanned items only) ── */}
+          {item.description ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Ingredients</Text>
+              <Text style={styles.descriptionText}>{item.description}</Text>
+            </View>
+          ) : null}
+
           {/* ── Serving unit toggle (hidden for AI-scanned items) ── */}
           {!isAiScan && (
             <View style={styles.card}>
@@ -286,6 +294,12 @@ export default function LogItemScreen() {
                 );
               })}
             </View>
+          </View>
+
+          {/* ── Date ── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Log Date</Text>
+            <DateSelector value={dateId} onChange={setDateId} />
           </View>
 
           {/* ── CTA ── */}
@@ -414,6 +428,12 @@ const styles = StyleSheet.create({
     color: Colors.onSurface,
   },
   previewCard: { gap: Spacing.three },
+  descriptionText: {
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+    lineHeight: LineHeight.bodyMd,
+  },
 
   // Serving toggle
   toggleRow: {

@@ -12,8 +12,6 @@ import { Colors } from '@/constants/theme';
 import { DailySummary } from '@/types/nutrition';
 import { styles } from './macro-section.styles';
 
-// ─── Single macro bar ─────────────────────────────────────────────────────────
-
 type MacroBarProps = {
   label: string;
   consumed: number;
@@ -42,7 +40,7 @@ function MacroBar({ label, consumed, goal, color, delay = 0 }: MacroBarProps) {
       <View style={styles.barHeader}>
         <Text style={styles.macroLabel}>{label}</Text>
         <Text style={styles.macroValues}>
-          <Text style={[styles.macroConsumed, { color }]}>{consumed}g</Text>
+          <Text style={[styles.macroConsumed, { color }]}>{+parseFloat((consumed).toFixed(1))}g</Text>
           <Text style={styles.macroGoal}> / {goal}g</Text>
         </Text>
       </View>

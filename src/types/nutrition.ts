@@ -46,7 +46,7 @@ export type UserProfile = {
   updatedAt: string;
 };
 
-export type FoodSource = 'ai_scan' | 'manual_search' | 'system';
+export type FoodSource = 'ai_scan' | 'barcode' | 'manual_search' | 'system';
 
 export type FoodItem = {
   id: string;

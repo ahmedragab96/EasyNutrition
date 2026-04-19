@@ -35,7 +35,7 @@ export function DayDetail({ dateId, meals, summary, loading }: DayDetailProps) {
       <View style={styles.headerRow}>
         <View style={styles.headerText}>
           <Text style={styles.heading}>{heading}</Text>
-          {hasData && (
+          {!loading && hasData && (
             <Text style={styles.targetLine}>
               You've reached{' '}
               <Text style={styles.targetPct}>{percent}%</Text>
@@ -49,22 +49,84 @@ export function DayDetail({ dateId, meals, summary, loading }: DayDetailProps) {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={Colors.primary} />
-      ) : groups.length > 0 ? (
-        <View style={styles.mealList}>
-          {groups.map(({ type, meals: groupMeals }) => (
-            <MealGroup key={type} type={type} meals={groupMeals} />
-          ))}
-        </View>
+        <ActivityIndicator color={Colors.primary} style={styles.loader} />
       ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🥗</Text>
-          <Text style={styles.emptyText}>No meals logged for this day.</Text>
-        </View>
+        <>
+          {hasData && (
+            <View style={styles.statsRow}>
+              <StatChip label="KCAL"    value={summary.caloriesConsumed}       goal={summary.caloriesGoal}             unit=""  highlight />
+              <StatChip label="PROTEIN" value={summary.macros.protein.consumed} goal={summary.macros.protein.goal} unit="g" />
+              <StatChip label="CARBS"   value={summary.macros.carbs.consumed}   goal={summary.macros.carbs.goal}   unit="g" />
+              <StatChip label="FATS"    value={summary.macros.fats.consumed}    goal={summary.macros.fats.goal}    unit="g" />
+            </View>
+          )}
+
+          {groups.length > 0 ? (
+            <View style={styles.mealList}>
+              {groups.map(({ type, meals: groupMeals }) => (
+                <MealGroup key={type} type={type} meals={groupMeals} />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>🥗</Text>
+              <Text style={styles.emptyText}>No meals logged for this day.</Text>
+            </View>
+          )}
+        </>
       )}
     </View>
   );
 }
+
+// ─── StatChip ─────────────────────────────────────────────────────────────────
+
+type StatChipProps = { label: string; value: number; goal: number; unit: string; highlight?: boolean };
+
+function StatChip({ label, value, goal, unit, highlight }: StatChipProps) {
+  return (
+    <View style={[chipStyles.chip, highlight && chipStyles.chipHighlight]}>
+      <Text style={[chipStyles.value, highlight && chipStyles.valueHighlight]}>
+        {value}{unit}
+      </Text>
+      <Text style={[chipStyles.goal, highlight && chipStyles.goalHighlight]}>
+        / {goal}{unit}
+      </Text>
+      <Text style={[chipStyles.label, highlight && chipStyles.labelHighlight]}>{label}</Text>
+    </View>
+  );
+}
+
+const chipStyles = StyleSheet.create({
+  chip: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.two,
+    alignItems: 'center',
+    gap: 1,
+  },
+  chipHighlight: { backgroundColor: Colors.primaryContainer },
+  value: {
+    fontSize: FontSize.labelMd,
+    fontFamily: FontFamily.displayBold,
+    color: Colors.onSurface,
+  },
+  valueHighlight: { color: Colors.onPrimaryContainer },
+  goal: {
+    fontSize: 9,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+  },
+  goalHighlight: { color: Colors.onPrimaryContainer },
+  label: {
+    fontSize: 9,
+    fontFamily: FontFamily.bodyBold,
+    color: Colors.onSurfaceVariant,
+    letterSpacing: 0.5,
+  },
+  labelHighlight: { color: Colors.onPrimaryContainer },
+});
 
 const styles = StyleSheet.create({
   root: {
@@ -104,6 +166,10 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bodySemiBold,
     color: Colors.onSurface,
   },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
   iconBadge: {
     width: 36,
     height: 36,
@@ -112,6 +178,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  loader: { paddingVertical: Spacing.four },
   mealList: { gap: Spacing.two },
   emptyState: {
     alignItems: 'center',

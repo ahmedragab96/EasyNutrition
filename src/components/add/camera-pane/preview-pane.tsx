@@ -105,7 +105,7 @@ export function PreviewPane({ photoUri, onRetake, onAnalyse }: PreviewPaneProps)
 
 const styles = StyleSheet.create({
   photoCard: {
-    height: 220,
+    height: 200,
     borderRadius: Radius.xxl,
     overflow: 'hidden',
     backgroundColor: Colors.surfaceContainerHighest,

@@ -15,7 +15,7 @@ import { useLogMeal } from '@/hooks/use-log-meal';
 import { type MealAnalysisResult } from '@/services/meal-analysis';
 import { MealType } from '@/types/nutrition';
 import { getTodayDateId } from '../add-shared/add-constants';
-import { MacroChip, MealTypePills } from '../add-shared/add-shared';
+import { DateSelector, MacroChip, MealTypePills } from '../add-shared/add-shared';
 import { cardStyles, chipStyles } from '../add-shared/add-shared.styles';
 
 type AiResultCardProps = {
@@ -28,6 +28,7 @@ type AiResultCardProps = {
 export function AiResultCard({ photoUri, result, onRetake, onConfirm }: AiResultCardProps) {
   const { logFromScan, loading } = useLogMeal();
   const [mealType, setMealType] = useState<MealType | null>(null);
+  const [dateId, setDateId] = useState(getTodayDateId());
 
   async function handleConfirm() {
     if (!mealType) return;
@@ -41,7 +42,7 @@ export function AiResultCard({ photoUri, result, onRetake, onConfirm }: AiResult
         fats: result.fats,
         aiConfidence: result.confidence,
         mealType,
-        dateId: getTodayDateId(),
+        dateId,
       });
       onConfirm();
     } catch {
@@ -116,6 +117,12 @@ export function AiResultCard({ photoUri, result, onRetake, onConfirm }: AiResult
       <View style={cardStyles.card}>
         <Text style={cardStyles.cardTitle}>Meal Type</Text>
         <MealTypePills value={mealType} onChange={setMealType} />
+      </View>
+
+      {/* ── Date ── */}
+      <View style={cardStyles.card}>
+        <Text style={cardStyles.cardTitle}>Log Date</Text>
+        <DateSelector value={dateId} onChange={setDateId} />
       </View>
 
       {/* ── CTA ── */}

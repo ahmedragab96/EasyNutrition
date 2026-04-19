@@ -58,9 +58,6 @@ export default function RootLayout() {
 
     getUserProfile()
       .then((profile) => {
-        // Only consider onboarding done if calorieGoal was explicitly set
-        // (i.e. the user completed the onboarding wizard). A null profile or
-        // a row with calorieGoal === 0 means onboarding is still needed.
         setHasProfile(!!profile && (profile.calorieGoal ?? 0) > 0);
       })
       .catch(() => {
@@ -71,12 +68,12 @@ export default function RootLayout() {
       });
   }, [session, authLoading]);
 
-  // Hide splash and redirect once everything is resolved
-  useEffect(() => {
-    if (!fontsLoaded && !fontError) return;
-    if (authLoading || !profileReady) return;
+  const appReady = (fontsLoaded || !!fontError) && !authLoading && profileReady;
 
-    SplashScreen.hideAsync();
+  // Navigate to the correct screen, then hide the splash one frame later so
+  // the target route has already rendered before the splash fades out.
+  useEffect(() => {
+    if (!appReady) return;
 
     if (!session) {
       router.replace('/(auth)/register');
@@ -85,7 +82,14 @@ export default function RootLayout() {
     } else {
       router.replace('/(tabs)');
     }
-  }, [fontsLoaded, fontError, authLoading, session, hasProfile, profileReady]);
+
+    const raf = requestAnimationFrame(() => { SplashScreen.hideAsync(); });
+    return () => cancelAnimationFrame(raf);
+  }, [appReady, session, hasProfile]);
+
+  // Keep returning null (native splash stays visible) until everything is
+  // resolved. The Stack only mounts once we know where to send the user.
+  if (!appReady) return null;
 
   return (
     <>

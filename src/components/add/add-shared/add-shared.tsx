@@ -4,8 +4,8 @@ import { Pressable, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { MealType } from '@/types/nutrition';
-import { MEAL_TYPE_OPTIONS } from './add-constants';
-import { cameraSharedStyles, chipStyles, pillStyles } from './add-shared.styles';
+import { dateIdLabel, dateToDateId, getTodayDateId, MEAL_TYPE_OPTIONS } from './add-constants';
+import { cameraSharedStyles, chipStyles, dateSelectorStyles, pillStyles } from './add-shared.styles';
 
 // ─── MealTypePills ────────────────────────────────────────────────────────────
 
@@ -51,6 +51,58 @@ export function MacroChip({ label, value, unit, highlight }: MacroChipProps) {
       <Text style={[chipStyles.chipLabel, highlight && chipStyles.chipLabelHighlight]}>
         {label}
       </Text>
+    </View>
+  );
+}
+
+// ─── DateSelector ─────────────────────────────────────────────────────────────
+
+type DateSelectorProps = {
+  value: string;          // dateId: YYYY-MM-DD
+  onChange: (dateId: string) => void;
+  maxDaysBack?: number;   // how far back users can go (default: 30)
+};
+
+export function DateSelector({ value, onChange, maxDaysBack = 30 }: DateSelectorProps) {
+  const today = getTodayDateId();
+  const isToday = value === today;
+
+  const earliest = dateToDateId(new Date(Date.now() - maxDaysBack * 86_400_000));
+  const isEarliest = value <= earliest;
+
+  function shift(days: number) {
+    const d = new Date(value + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    const next = dateToDateId(d);
+    if (next > today || next < earliest) return;
+    onChange(next);
+  }
+
+  return (
+    <View style={dateSelectorStyles.row}>
+      <Pressable
+        onPress={() => shift(-1)}
+        disabled={isEarliest}
+        style={[dateSelectorStyles.arrowBtn, isEarliest && dateSelectorStyles.arrowBtnDisabled]}
+        accessibilityLabel="Previous day"
+        android_ripple={{ color: Colors.surfaceContainerHigh, borderless: true, radius: 18 }}
+      >
+        <Ionicons name="chevron-back" size={18} color={Colors.onSurface} />
+      </Pressable>
+
+      <Text style={[dateSelectorStyles.label, isToday && dateSelectorStyles.labelToday]}>
+        {dateIdLabel(value)}
+      </Text>
+
+      <Pressable
+        onPress={() => shift(1)}
+        disabled={isToday}
+        style={[dateSelectorStyles.arrowBtn, isToday && dateSelectorStyles.arrowBtnDisabled]}
+        accessibilityLabel="Next day"
+        android_ripple={{ color: Colors.surfaceContainerHigh, borderless: true, radius: 18 }}
+      >
+        <Ionicons name="chevron-forward" size={18} color={Colors.onSurface} />
+      </Pressable>
     </View>
   );
 }
