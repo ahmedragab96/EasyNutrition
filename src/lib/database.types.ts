@@ -189,7 +189,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      food_source: "ai_scan" | "manual_search" | "system"
+      food_source: "ai_scan" | "barcode" | "manual_search" | "system"
       meal_type: "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK"
     }
     CompositeTypes: {

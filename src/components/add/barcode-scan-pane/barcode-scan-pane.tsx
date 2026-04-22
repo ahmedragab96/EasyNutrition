@@ -128,7 +128,7 @@ type BarcodeResultCardProps = {
 };
 
 function BarcodeResultCard({ product, mealType, onMealTypeChange, onScanAgain }: BarcodeResultCardProps) {
-  const { logFromScan, loading } = useLogMeal();
+  const { logFromScan, loading, error } = useLogMeal();
   const [amountStr, setAmountStr] = useState('100');
   const [dateId, setDateId] = useState(getTodayDateId());
 
@@ -233,6 +233,14 @@ function BarcodeResultCard({ product, mealType, onMealTypeChange, onScanAgain }:
         <Text style={cardStyles.cardTitle}>Log Date</Text>
         <DateSelector value={dateId} onChange={setDateId} />
       </View>
+
+      {/* ── Error ── */}
+      {error ? (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle-outline" size={16} color={Colors.tertiary} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
 
       {/* ── CTAs ── */}
       <Pressable
@@ -372,6 +380,21 @@ const styles = StyleSheet.create({
     fontSize: FontSize.labelSm,
     fontFamily: FontFamily.body,
     color: Colors.onSurfaceVariant,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    backgroundColor: '#fce8e3',
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: FontSize.bodyMd,
+    fontFamily: FontFamily.body,
+    color: Colors.tertiary,
   },
   scanAgainBtn: {
     flexDirection: 'row',
