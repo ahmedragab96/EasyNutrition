@@ -37,7 +37,15 @@ export async function analyzeMealPhoto(input: AnalyzeInput): Promise<MealAnalysi
       : undefined,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.name === 'FunctionsHttpError' && error.context) {
+      const status: number = error.context.status ?? 0;
+      const body = await error.context.json().catch(() => null);
+      const msg = body?.error ?? body?.message ?? error.message;
+      throw new Error(`[${status}] ${msg}`);
+    }
+    throw new Error(error.message);
+  }
   if (data?.error) throw new Error(data.error);
 
   return data as MealAnalysisResult;

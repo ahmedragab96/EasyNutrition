@@ -1,0 +1,10 @@
+project_id = "iwavtayckjwkvgfjghrk"
+
+[functions.analyze-meal]
+verify_jwt = false
+
+[functions.analyze-insights]
+verify_jwt = false
+
+[functions.calculate-goals]
+verify_jwt = false
